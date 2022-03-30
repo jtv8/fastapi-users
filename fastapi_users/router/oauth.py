@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -26,12 +26,44 @@ def generate_state_token(
     return generate_jwt(data, secret, lifetime_seconds)
 
 
+async def do_oauth_login(
+    oauth_client: BaseOAuth2[Any],
+    backend: AuthenticationBackend[models.UC, models.UD],
+    request: Request,
+    response: Response,
+    user_manager: BaseUserManager[models.UC, models.UD],
+    strategy: Strategy[models.UC, models.UD],
+    token: OAuth2Token,
+) -> Any:
+    account_id, account_email = await oauth_client.get_id_email(token["access_token"])
+
+    new_oauth_account = models.BaseOAuthAccount(
+        oauth_name=oauth_client.name,
+        access_token=token["access_token"],
+        expires_at=token.get("expires_at"),
+        refresh_token=token.get("refresh_token"),
+        account_id=account_id,
+        account_email=account_email,
+    )
+
+    user = await user_manager.oauth_callback(new_oauth_account, request)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
+        )
+
+    # Authenticate
+    return await backend.login(strategy, user, response)
+
+
 def get_oauth_router(
-    oauth_client: BaseOAuth2,
-    backend: AuthenticationBackend,
+    oauth_client: BaseOAuth2[Any],
+    backend: AuthenticationBackend[models.UC, models.UD],
     get_user_manager: UserManagerDependency[models.UC, models.UD],
     state_secret: SecretType,
-    redirect_url: str = None,
+    redirect_url: Optional[str] = None,
 ) -> APIRouter:
     """Generate a router with the OAuth routes."""
     router = APIRouter()
@@ -53,7 +85,7 @@ def get_oauth_router(
         name=f"oauth:{oauth_client.name}.{backend.name}.authorize",
         response_model=OAuth2AuthorizeResponse,
     )
-    async def authorize(
+    async def authorize(  # type: ignore
         request: Request, scopes: List[str] = Query(None)
     ) -> OAuth2AuthorizeResponse:
         if redirect_url is not None:
@@ -95,7 +127,7 @@ def get_oauth_router(
             },
         },
     )
-    async def callback(
+    async def callback(  # type: ignore
         request: Request,
         response: Response,
         access_token_state: Tuple[OAuth2Token, str] = Depends(
@@ -105,33 +137,13 @@ def get_oauth_router(
         strategy: Strategy[models.UC, models.UD] = Depends(backend.get_strategy),
     ):
         token, state = access_token_state
-        account_id, account_email = await oauth_client.get_id_email(
-            token["access_token"]
-        )
-
         try:
             decode_jwt(state, state_secret, [STATE_TOKEN_AUDIENCE])
         except jwt.DecodeError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-        new_oauth_account = models.BaseOAuthAccount(
-            oauth_name=oauth_client.name,
-            access_token=token["access_token"],
-            expires_at=token.get("expires_at"),
-            refresh_token=token.get("refresh_token"),
-            account_id=account_id,
-            account_email=account_email,
+        return await do_oauth_login(
+            oauth_client, backend, request, response, user_manager, strategy, token
         )
-
-        user = await user_manager.oauth_callback(new_oauth_account, request)
-
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
-            )
-
-        # Authenticate
-        return await backend.login(strategy, user, response)
 
     return router

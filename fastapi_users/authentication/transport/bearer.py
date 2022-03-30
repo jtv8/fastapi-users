@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import Response, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2, OAuth2PasswordBearer
 from pydantic import BaseModel
 
 from fastapi_users.authentication.transport.base import (
@@ -16,11 +16,11 @@ class BearerResponse(BaseModel):
     token_type: str
 
 
-class BearerTransport(Transport):
-    scheme: OAuth2PasswordBearer
+class BaseBearerTransport(Transport):
+    scheme: OAuth2
 
-    def __init__(self, tokenUrl: str):
-        self.scheme = OAuth2PasswordBearer(tokenUrl, auto_error=False)
+    def __init__(self, scheme: OAuth2):
+        self.scheme = scheme
 
     async def get_login_response(self, token: str, response: Response) -> Any:
         return BearerResponse(access_token=token, token_type="bearer")
@@ -51,3 +51,10 @@ class BearerTransport(Transport):
     @staticmethod
     def get_openapi_logout_responses_success() -> OpenAPIResponseType:
         return {}
+
+
+class BearerTransport(BaseBearerTransport):
+    scheme: OAuth2PasswordBearer
+
+    def __init__(self, tokenUrl: str):
+        super().__init__(OAuth2PasswordBearer(tokenUrl, auto_error=False))

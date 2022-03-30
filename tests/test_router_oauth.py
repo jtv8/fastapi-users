@@ -116,17 +116,12 @@ class TestCallback:
         access_token: str,
     ):
         async_method_mocker(oauth_client, "get_access_token", return_value=access_token)
-        get_id_email_mock = async_method_mocker(
-            oauth_client, "get_id_email", return_value=("user_oauth1", user_oauth.email)
-        )
 
         response = await test_app_client.get(
             "/callback",
             params={"code": "CODE", "state": "STATE"},
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-        get_id_email_mock.assert_called_once_with("TOKEN")
 
     async def test_active_user(
         self,

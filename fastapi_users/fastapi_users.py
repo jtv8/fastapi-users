@@ -1,4 +1,4 @@
-from typing import Generic, Sequence, Type
+from typing import Any, Generic, Optional, Sequence, Type
 
 from fastapi import APIRouter
 
@@ -17,9 +17,11 @@ from fastapi_users.router import (
 try:
     from httpx_oauth.oauth2 import BaseOAuth2
 
+    OAuthClientType = BaseOAuth2[Any]
+
     from fastapi_users.router import get_oauth_router
 except ModuleNotFoundError:  # pragma: no cover
-    BaseOAuth2 = Type  # type: ignore
+    OAuthClientType = Any
 
 
 class FastAPIUsers(Generic[models.U, models.UC, models.UU, models.UD]):
@@ -47,7 +49,7 @@ class FastAPIUsers(Generic[models.U, models.UC, models.UU, models.UD]):
     def __init__(
         self,
         get_user_manager: UserManagerDependency[models.UC, models.UD],
-        auth_backends: Sequence[AuthenticationBackend],
+        auth_backends: Sequence[AuthenticationBackend[models.UC, models.UD]],
         user_model: Type[models.U],
         user_create_model: Type[models.UC],
         user_update_model: Type[models.UU],
@@ -80,7 +82,9 @@ class FastAPIUsers(Generic[models.U, models.UC, models.UU, models.UD]):
         return get_reset_password_router(self.get_user_manager)
 
     def get_auth_router(
-        self, backend: AuthenticationBackend, requires_verification: bool = False
+        self,
+        backend: AuthenticationBackend[models.UC, models.UD],
+        requires_verification: bool = False,
     ) -> APIRouter:
         """
         Return an auth router for a given authentication backend.
@@ -98,10 +102,10 @@ class FastAPIUsers(Generic[models.U, models.UC, models.UU, models.UD]):
 
     def get_oauth_router(
         self,
-        oauth_client: BaseOAuth2,
-        backend: AuthenticationBackend,
+        oauth_client: OAuthClientType,
+        backend: AuthenticationBackend[models.UC, models.UD],
         state_secret: SecretType,
-        redirect_url: str = None,
+        redirect_url: Optional[str] = None,
     ) -> APIRouter:
         """
         Return an OAuth router for a given OAuth client and authentication backend.
