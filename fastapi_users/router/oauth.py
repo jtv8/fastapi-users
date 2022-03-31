@@ -1,7 +1,16 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from httpx_oauth.integrations.fastapi import OAuth2AuthorizeCallback
 from httpx_oauth.oauth2 import BaseOAuth2, OAuth2Token
 from pydantic import BaseModel
@@ -107,6 +116,8 @@ def get_oauth_router(
         "/callback",
         name=callback_route_name,
         description="The response varies based on the authentication backend used.",
+        response_model=backend.transport.response_model,
+        response_model_exclude_none=True,
         responses={
             status.HTTP_400_BAD_REQUEST: {
                 "model": ErrorModel,
@@ -125,6 +136,7 @@ def get_oauth_router(
                     }
                 },
             },
+            **backend.transport.get_openapi_login_responses_success(),
         },
     )
     async def callback(  # type: ignore

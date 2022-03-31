@@ -3,13 +3,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Generic, Optional
 
 from fastapi_users import models
-from fastapi_users.authentication.strategy.base import Strategy
+from fastapi_users.authentication.strategy.base import Strategy, StrategyTokenResponse
 from fastapi_users.authentication.strategy.db.adapter import AccessTokenDatabase
 from fastapi_users.authentication.strategy.db.models import A
 from fastapi_users.manager import BaseUserManager, UserNotExists
 
 
-class DatabaseStrategy(Strategy, Generic[models.UC, models.UD, A]):
+class DatabaseStrategy(
+    Strategy[models.UC, models.UD], Generic[models.UC, models.UD, A]
+):
     def __init__(
         self, database: AccessTokenDatabase[A], lifetime_seconds: Optional[int] = None
     ):
@@ -38,10 +40,10 @@ class DatabaseStrategy(Strategy, Generic[models.UC, models.UD, A]):
         except UserNotExists:
             return None
 
-    async def write_token(self, user: models.UD) -> str:
+    async def write_token(self, user: models.UD) -> StrategyTokenResponse:
         access_token = self._create_access_token(user)
         await self.database.create(access_token)
-        return access_token.token
+        return StrategyTokenResponse(access_token=access_token.token)
 
     async def destroy_token(self, token: str, user: models.UD) -> None:
         access_token = await self.database.get_by_token(token)

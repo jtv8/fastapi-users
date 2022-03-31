@@ -2,8 +2,9 @@ from typing import Any
 
 from fastapi import Response, status
 from fastapi.security import OAuth2, OAuth2PasswordBearer
-from pydantic import BaseModel
+from pydantic import Field
 
+from fastapi_users.authentication.strategy.base import StrategyTokenResponse
 from fastapi_users.authentication.transport.base import (
     Transport,
     TransportLogoutNotSupportedError,
@@ -11,19 +12,21 @@ from fastapi_users.authentication.transport.base import (
 from fastapi_users.openapi import OpenAPIResponseType
 
 
-class BearerResponse(BaseModel):
-    access_token: str
-    token_type: str
+class BearerResponse(StrategyTokenResponse):
+    token_type: str = Field(default="bearer", regex="bearer")
 
 
 class BaseBearerTransport(Transport):
+    response_model = BearerResponse
     scheme: OAuth2
 
     def __init__(self, scheme: OAuth2):
         self.scheme = scheme
 
-    async def get_login_response(self, token: str, response: Response) -> Any:
-        return BearerResponse(access_token=token, token_type="bearer")
+    async def get_login_response(
+        self, token: StrategyTokenResponse, response: Response
+    ) -> Any:
+        return BearerResponse(**dict(token))
 
     async def get_logout_response(self, response: Response) -> Any:
         raise TransportLogoutNotSupportedError()

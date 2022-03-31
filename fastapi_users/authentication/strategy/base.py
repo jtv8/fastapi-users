@@ -6,8 +6,17 @@ if sys.version_info < (3, 8):
 else:
     from typing import Protocol  # pragma: no cover
 
+from typing import Optional
+
+from pydantic import BaseModel
+
 from fastapi_users import models
 from fastapi_users.manager import BaseUserManager
+
+
+class StrategyTokenResponse(BaseModel):
+    access_token: str
+    refresh_token: Optional[str] = None
 
 
 class StrategyDestroyNotSupportedError(Exception):
@@ -20,7 +29,7 @@ class Strategy(Protocol, Generic[models.UC, models.UD]):
     ) -> Optional[models.UD]:
         ...  # pragma: no cover
 
-    async def write_token(self, user: models.UD) -> str:
+    async def write_token(self, user: models.UD) -> StrategyTokenResponse:
         ...  # pragma: no cover
 
     async def destroy_token(self, token: str, user: models.UD) -> None:

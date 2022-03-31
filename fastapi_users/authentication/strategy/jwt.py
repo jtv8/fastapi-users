@@ -7,25 +7,30 @@ from fastapi_users import models
 from fastapi_users.authentication.strategy.base import (
     Strategy,
     StrategyDestroyNotSupportedError,
+    StrategyTokenResponse,
 )
 from fastapi_users.jwt import SecretType, decode_jwt, generate_jwt
 from fastapi_users.manager import BaseUserManager, UserNotExists
 
 
-class JWTStrategy(Strategy, Generic[models.UC, models.UD]):
+class JWTStrategy(Strategy[models.UC, models.UD]):
     def __init__(
         self,
         secret: SecretType,
-        lifetime_seconds: Optional[int],
+        lifetime_seconds: Optional[int] = None,
         token_audience: List[str] = ["fastapi-users:auth"],
         algorithm: str = "HS256",
         public_key: Optional[SecretType] = None,
+        refresh_token: bool = False,
+        refresh_token_lifetime_seconds: Optional[int] = None,
     ):
         self.secret = secret
         self.lifetime_seconds = lifetime_seconds
         self.token_audience = token_audience
         self.algorithm = algorithm
         self.public_key = public_key
+        self.refresh_token = refresh_token
+        self.refresh_token_lifetime_seconds = refresh_token_lifetime_seconds
 
     @property
     def encode_key(self) -> SecretType:
@@ -59,10 +64,26 @@ class JWTStrategy(Strategy, Generic[models.UC, models.UD]):
         except UserNotExists:
             return None
 
-    async def write_token(self, user: models.UD) -> str:
+    async def write_token(self, user: models.UD) -> StrategyTokenResponse:
         data = {"user_id": str(user.id), "aud": self.token_audience}
-        return generate_jwt(
+
+        access_token = generate_jwt(
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
+        )
+
+        if self.refresh_token:
+            refresh_token = generate_jwt(
+                data,
+                self.encode_key,
+                self.refresh_token_lifetime_seconds,
+                algorithm=self.algorithm,
+            )
+        else:
+            refresh_token = None
+
+        return StrategyTokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
         )
 
     async def destroy_token(self, token: str, user: models.UD) -> None:

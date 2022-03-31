@@ -5,11 +5,11 @@ import aioredis
 from pydantic import UUID4
 
 from fastapi_users import models
-from fastapi_users.authentication.strategy.base import Strategy
+from fastapi_users.authentication.strategy.base import Strategy, StrategyTokenResponse
 from fastapi_users.manager import BaseUserManager, UserNotExists
 
 
-class RedisStrategy(Strategy, Generic[models.UC, models.UD]):
+class RedisStrategy(Strategy[models.UC, models.UD]):
     def __init__(self, redis: aioredis.Redis, lifetime_seconds: Optional[int] = None):
         self.redis = redis
         self.lifetime_seconds = lifetime_seconds
@@ -32,10 +32,10 @@ class RedisStrategy(Strategy, Generic[models.UC, models.UD]):
         except UserNotExists:
             return None
 
-    async def write_token(self, user: models.UD) -> str:
+    async def write_token(self, user: models.UD) -> StrategyTokenResponse:
         token = secrets.token_urlsafe()
         await self.redis.set(token, str(user.id), ex=self.lifetime_seconds)
-        return token
+        return StrategyTokenResponse(access_token=token)
 
     async def destroy_token(self, token: str, user: models.UD) -> None:
         await self.redis.delete(token)
