@@ -12,7 +12,7 @@ from fastapi_users.jwt import SecretType, decode_jwt, generate_jwt
 from fastapi_users.manager import BaseUserManager, UserNotExists
 
 
-class JWTStrategy(Strategy, Generic[models.UC, models.UD]):
+class JWTStrategy(Strategy[models.UC, models.UD]):
     def __init__(
         self,
         secret: SecretType,
@@ -60,7 +60,11 @@ class JWTStrategy(Strategy, Generic[models.UC, models.UD]):
             return None
 
     async def write_token(self, user: models.UD) -> str:
-        data = {"user_id": str(user.id), "aud": self.token_audience}
+        data = {
+            "sub": str(user.id),
+            "user_id": str(user.id),  # included for backward compatibility
+            "aud": self.token_audience,
+        }
         return generate_jwt(
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
         )

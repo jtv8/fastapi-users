@@ -1,4 +1,4 @@
-from typing import Any, Generic
+from typing import Any, Generic, Optional
 
 from fastapi import Response
 
@@ -34,19 +34,37 @@ class AuthenticationBackend(Generic[models.UC, models.UD]):
         name: str,
         transport: Transport,
         get_strategy: DependencyCallable[Strategy[models.UC, models.UD]],
+        get_refresh_token_strategy: Optional[
+            DependencyCallable[Strategy[models.UC, models.UD]]
+        ],
     ):
         self.name = name
         self.transport = transport
         self.get_strategy = get_strategy
+        if get_refresh_token_strategy:
+            self.get_refresh_token_strategy = get_refresh_token_strategy
+        else:
+            self.get_refresh_token_strategy = lambda: None
 
     async def login(
         self,
         strategy: Strategy[models.UC, models.UD],
         user: models.UD,
         response: Response,
+        refresh_token_strategy: Optional[Strategy[models.UC, models.UD]] = None,
     ) -> Any:
-        token = await strategy.write_token(user)
-        return await self.transport.get_login_response(token, response)
+        access_token = await strategy.write_token(user)
+
+        if refresh_token_strategy:
+            refresh_token = await refresh_token_strategy.write_token(user)
+        else:
+            refresh_token = None
+
+        return await self.transport.get_login_response(
+            access_token,
+            response,
+            refresh_token=refresh_token,
+        )
 
     async def logout(
         self,

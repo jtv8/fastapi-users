@@ -34,6 +34,7 @@ async def do_oauth_login(
     user_manager: BaseUserManager[models.UC, models.UD],
     strategy: Strategy[models.UC, models.UD],
     token: OAuth2Token,
+    refresh_token_strategy: Strategy[models.UC, models.UD],
 ) -> Any:
     account_id, account_email = await oauth_client.get_id_email(token["access_token"])
 
@@ -55,7 +56,9 @@ async def do_oauth_login(
         )
 
     # Authenticate
-    return await backend.login(strategy, user, response)
+    return await backend.login(
+        strategy, user, response, refresh_token_strategy=refresh_token_strategy
+    )
 
 
 def get_oauth_router(
@@ -107,6 +110,8 @@ def get_oauth_router(
         "/callback",
         name=callback_route_name,
         description="The response varies based on the authentication backend used.",
+        response_model=backend.transport.response_model,
+        response_model_exclude_none=True,
         responses={
             status.HTTP_400_BAD_REQUEST: {
                 "model": ErrorModel,
@@ -125,6 +130,7 @@ def get_oauth_router(
                     }
                 },
             },
+            **backend.transport.get_openapi_login_responses_success(),
         },
     )
     async def callback(  # type: ignore
@@ -135,6 +141,9 @@ def get_oauth_router(
         ),
         user_manager: BaseUserManager[models.UC, models.UD] = Depends(get_user_manager),
         strategy: Strategy[models.UC, models.UD] = Depends(backend.get_strategy),
+        refresh_token_strategy: Optional[Strategy[models.UC, models.UD]] = Depends(
+            backend.get_refresh_token_strategy
+        ),
     ):
         token, state = access_token_state
         try:
@@ -143,7 +152,14 @@ def get_oauth_router(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
         return await do_oauth_login(
-            oauth_client, backend, request, response, user_manager, strategy, token
+            oauth_client,
+            backend,
+            request,
+            response,
+            user_manager,
+            strategy,
+            token,
+            refresh_token_strategy,
         )
 
     return router

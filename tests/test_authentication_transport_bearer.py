@@ -27,6 +27,21 @@ async def test_get_login_response(bearer_transport: BearerTransport):
 
 @pytest.mark.authentication
 @pytest.mark.asyncio
+async def test_get_login_response_with_refresh_token(bearer_transport: BearerTransport):
+    response = Response()
+    login_response = await bearer_transport.get_login_response(
+        "ACCESS_TOKEN", response, refresh_token="REFRESH_TOKEN"
+    )
+
+    assert isinstance(login_response, BearerResponse)
+
+    assert login_response.access_token == "ACCESS_TOKEN"
+    assert login_response.refresh_token == "REFRESH_TOKEN"
+    assert login_response.token_type == "bearer"
+
+
+@pytest.mark.authentication
+@pytest.mark.asyncio
 async def test_get_logout_response(bearer_transport: BearerTransport):
     response = Response()
     with pytest.raises(TransportLogoutNotSupportedError):

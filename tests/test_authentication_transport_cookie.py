@@ -78,6 +78,62 @@ async def test_get_login_response(cookie_transport: CookieTransport):
 
 @pytest.mark.authentication
 @pytest.mark.asyncio
+async def test_get_login_response_with_refresh_token(cookie_transport: CookieTransport):
+    path = cookie_transport.cookie_path
+    domain = cookie_transport.cookie_domain
+    secure = cookie_transport.cookie_secure
+    httponly = cookie_transport.cookie_httponly
+
+    response = Response()
+    login_response = await cookie_transport.get_login_response(
+        "ACCESS_TOKEN",
+        response,
+        refresh_token="REFRESH_TOKEN",
+    )
+
+    assert login_response is None
+
+    cookies = [header for header in response.raw_headers if header[0] == b"set-cookie"]
+    assert len(cookies) == 2
+
+    expected_cookies = {
+        COOKIE_NAME: "ACCESS_TOKEN",
+        f"{COOKIE_NAME}_refresh": "REFRESH_TOKEN",
+    }
+
+    for cookie_dict in cookies:
+        cookie = cookie_dict[1].decode("latin-1")
+
+        assert f"Max-Age={COOKIE_MAX_AGE}" in cookie
+        assert f"Path={path}" in cookie
+
+        if domain:
+            assert f"Domain={domain}" in cookie
+        else:
+            assert "Domain=" not in cookie
+
+        if secure:
+            assert "Secure" in cookie
+        else:
+            assert "Secure" not in cookie
+
+        if httponly:
+            assert "HttpOnly" in cookie
+        else:
+            assert "HttpOnly" not in cookie
+
+        cookie_name_value = re.match(r"^(\w+)=([^;]+);", cookie)
+        assert cookie_name_value is not None
+
+        cookie_name = cookie_name_value[1]
+        assert cookie_name in expected_cookies.keys()
+
+        cookie_value = cookie_name_value[2]
+        assert cookie_value == expected_cookies[cookie_name]
+
+
+@pytest.mark.authentication
+@pytest.mark.asyncio
 async def test_get_logout_response(cookie_transport: CookieTransport):
     response = Response()
     logout_response = await cookie_transport.get_logout_response(response)

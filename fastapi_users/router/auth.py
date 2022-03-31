@@ -1,6 +1,6 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from fastapi_users import models
@@ -10,8 +10,20 @@ from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
 
+class OAuth2RefreshTokenForm(object):
+    def __init__(
+        self,
+        grant_type: str = Form(..., regex="refresh_token"),
+        refresh_token: str = Form(...),
+        scope: str = Form(""),
+    ):
+        self.grant_type = grant_type
+        self.refresh_token = refresh_token
+        self.scopes = scope.split()
+
+
 def get_auth_router(
-    backend: AuthenticationBackend,
+    backend: AuthenticationBackend[models.UC, models.UD],
     get_user_manager: UserManagerDependency[models.UC, models.UD],
     authenticator: Authenticator,
     requires_verification: bool = False,
@@ -47,12 +59,17 @@ def get_auth_router(
         "/login",
         name=f"auth:{backend.name}.login",
         responses=login_responses,
+        response_model=backend.transport.response_model,
+        response_model_exclude_none=True,
     )
     async def login(
         response: Response,
         credentials: OAuth2PasswordRequestForm = Depends(),
         user_manager: BaseUserManager[models.UC, models.UD] = Depends(get_user_manager),
         strategy: Strategy[models.UC, models.UD] = Depends(backend.get_strategy),
+        refresh_token_strategy: Optional[Strategy[models.UC, models.UD]] = Depends(
+            backend.get_refresh_token_strategy
+        ),
     ):
         user = await user_manager.authenticate(credentials)
 
@@ -66,7 +83,7 @@ def get_auth_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_USER_NOT_VERIFIED,
             )
-        return await backend.login(strategy, user, response)
+        return await backend.login(strategy, user, response, refresh_token_strategy)
 
     logout_responses: OpenAPIResponseType = {
         **{
@@ -87,5 +104,34 @@ def get_auth_router(
     ):
         user, token = user_token
         return await backend.logout(strategy, user, token, response)
+
+    @router.post(
+        "/refresh",
+        name=f"auth:{backend.name}.refresh",
+        responses=login_responses,
+        response_model=backend.transport.response_model,
+        response_model_exclude_none=True,
+    )
+    async def refresh(
+        response: Response,
+        form_data: OAuth2RefreshTokenForm = Depends(),
+        user_manager: BaseUserManager[models.UC, models.UD] = Depends(get_user_manager),
+        strategy: Strategy[models.UC, models.UD] = Depends(backend.get_strategy),
+        refresh_token_strategy: Optional[Strategy[models.UC, models.UD]] = Depends(
+            backend.get_refresh_token_strategy
+        ),
+    ):
+        assert refresh_token_strategy
+
+        user = await refresh_token_strategy.read_token(
+            form_data.refresh_token, user_manager
+        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="invalid_grant",
+            )
+
+        return await backend.login(strategy, user, response, refresh_token_strategy)
 
     return router

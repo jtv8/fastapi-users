@@ -19,6 +19,7 @@ class CookieTransport(Transport):
         cookie_secure: bool = True,
         cookie_httponly: bool = True,
         cookie_samesite: str = "lax",
+        refresh_cookie_name: Optional[str] = None,
     ):
         self.cookie_name = cookie_name
         self.cookie_max_age = cookie_max_age
@@ -27,35 +28,50 @@ class CookieTransport(Transport):
         self.cookie_secure = cookie_secure
         self.cookie_httponly = cookie_httponly
         self.cookie_samesite = cookie_samesite
+        self.refresh_cookie_name = refresh_cookie_name
         self.scheme = APIKeyCookie(name=self.cookie_name, auto_error=False)
 
-    async def get_login_response(self, token: str, response: Response) -> Any:
-        response.set_cookie(
-            self.cookie_name,
-            token,
-            max_age=self.cookie_max_age,
-            path=self.cookie_path,
-            domain=self.cookie_domain,
-            secure=self.cookie_secure,
-            httponly=self.cookie_httponly,
-            samesite=self.cookie_samesite,
-        )
+    async def get_login_response(
+        self,
+        token: str,
+        response: Response,
+        refresh_token: Optional[str] = None,
+    ) -> Any:
+
+        cookie_values = {self.cookie_name: token}
+        if refresh_token:
+            if not self.refresh_cookie_name:
+                raise Exception("refresh_cookie_name must be set")
+            cookie_values[self.refresh_cookie_name] = refresh_token
+
+        for cookie_name, cookie_value in cookie_values.items():
+            response.set_cookie(
+                cookie_name,
+                cookie_value,
+                max_age=self.cookie_max_age,
+                path=self.cookie_path,
+                domain=self.cookie_domain,
+                secure=self.cookie_secure,
+                httponly=self.cookie_httponly,
+                samesite=self.cookie_samesite,
+            )
 
         # We shouldn't return directly the response
         # so that FastAPI can terminate it properly
         return None
 
     async def get_logout_response(self, response: Response) -> Any:
-        response.set_cookie(
-            self.cookie_name,
-            "",
-            max_age=0,
-            path=self.cookie_path,
-            domain=self.cookie_domain,
-            secure=self.cookie_secure,
-            httponly=self.cookie_httponly,
-            samesite=self.cookie_samesite,
-        )
+        for cookie_name in [self.cookie_name, self.refresh_cookie_name]:
+            response.set_cookie(
+                cookie_name,
+                "",
+                max_age=0,
+                path=self.cookie_path,
+                domain=self.cookie_domain,
+                secure=self.cookie_secure,
+                httponly=self.cookie_httponly,
+                samesite=self.cookie_samesite,
+            )
 
     @staticmethod
     def get_openapi_login_responses_success() -> OpenAPIResponseType:

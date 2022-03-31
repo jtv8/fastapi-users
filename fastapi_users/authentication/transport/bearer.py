@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional, Type
 
 from fastapi import Response, status
 from fastapi.security import OAuth2, OAuth2PasswordBearer
@@ -14,16 +14,27 @@ from fastapi_users.openapi import OpenAPIResponseType
 class BearerResponse(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: Optional[str] = None
 
 
 class BaseBearerTransport(Transport):
     scheme: OAuth2
+    response_model: Optional[Type[BaseModel]] = BearerResponse
 
     def __init__(self, scheme: OAuth2):
         self.scheme = scheme
 
-    async def get_login_response(self, token: str, response: Response) -> Any:
-        return BearerResponse(access_token=token, token_type="bearer")
+    async def get_login_response(
+        self,
+        token: str,
+        response: Response,
+        refresh_token: Optional[str] = None,
+    ) -> Any:
+        return BearerResponse(
+            access_token=token,
+            token_type="bearer",
+            refresh_token=refresh_token,
+        )
 
     async def get_logout_response(self, response: Response) -> Any:
         raise TransportLogoutNotSupportedError()
@@ -31,6 +42,7 @@ class BaseBearerTransport(Transport):
     @staticmethod
     def get_openapi_login_responses_success() -> OpenAPIResponseType:
         return {
+            # TODO: Add refresh token example
             status.HTTP_200_OK: {
                 "model": BearerResponse,
                 "content": {

@@ -1,5 +1,5 @@
 import secrets
-from typing import Generic, Optional
+from typing import Optional
 
 import aioredis
 from pydantic import UUID4
@@ -9,7 +9,7 @@ from fastapi_users.authentication.strategy.base import Strategy
 from fastapi_users.manager import BaseUserManager, UserNotExists
 
 
-class RedisStrategy(Strategy, Generic[models.UC, models.UD]):
+class RedisStrategy(Strategy[models.UC, models.UD]):
     def __init__(self, redis: aioredis.Redis, lifetime_seconds: Optional[int] = None):
         self.redis = redis
         self.lifetime_seconds = lifetime_seconds
