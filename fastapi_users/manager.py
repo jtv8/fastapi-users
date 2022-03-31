@@ -238,7 +238,8 @@ class BaseUserManager(Generic[models.UC, models.UD]):
             raise UserAlreadyVerified()
 
         token_data = {
-            "user_id": str(user.id),
+            "user_id": str(user.id),  # included for backward compatibility
+            "sub": str(user.id),
             "email": user.email,
             "aud": self.verification_token_audience,
         }
@@ -318,7 +319,8 @@ class BaseUserManager(Generic[models.UC, models.UD]):
             raise UserInactive()
 
         token_data = {
-            "user_id": str(user.id),
+            "user_id": str(user.id),  # included for backward compatibility
+            "sub": str(user.id),
             "aud": self.reset_password_token_audience,
         }
         token = generate_jwt(

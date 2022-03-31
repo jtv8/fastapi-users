@@ -9,6 +9,7 @@ from fastapi_users.authentication.strategy import (
     BaseAccessToken,
     DatabaseStrategy,
 )
+from fastapi_users.authentication.strategy.base import StrategyTokenResponse
 
 
 class AccessToken(BaseAccessToken):
@@ -110,8 +111,9 @@ async def test_write_token(
     access_token_database: AccessTokenDatabaseMock,
     user,
 ):
-    token = await database_strategy.write_token(user)
-
+    token_response = await database_strategy.write_token(user)
+    assert isinstance(token_response, StrategyTokenResponse)
+    token = token_response.access_token
     access_token = await access_token_database.get_by_token(token)
     assert access_token is not None
     assert access_token.user_id == user.id

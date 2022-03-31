@@ -13,6 +13,7 @@ from pytest_mock import MockerFixture
 from fastapi_users import models
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport
 from fastapi_users.authentication.strategy import Strategy
+from fastapi_users.authentication.strategy.base import StrategyTokenResponse
 from fastapi_users.db import BaseUserDatabase
 from fastapi_users.jwt import SecretType
 from fastapi_users.manager import (
@@ -464,8 +465,8 @@ class MockStrategy(Strategy[UserCreate, UserDB]):
                 return None
         return None
 
-    async def write_token(self, user: models.UD) -> str:
-        return str(user.id)
+    async def write_token(self, user: models.UD) -> StrategyTokenResponse:
+        return StrategyTokenResponse(access_token=str(user.id))
 
     async def destroy_token(self, token: str, user: models.UD) -> None:
         return None

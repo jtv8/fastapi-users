@@ -97,7 +97,7 @@ class TestReadToken:
 async def test_write_token(redis_strategy: RedisStrategy, redis: RedisMock, user):
     token = await redis_strategy.write_token(user)
 
-    value = await redis.get(token)
+    value = await redis.get(token.access_token)
     assert value == str(user.id)
 
 

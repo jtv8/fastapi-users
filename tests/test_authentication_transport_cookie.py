@@ -3,6 +3,7 @@ import re
 import pytest
 from fastapi import Response, status
 
+from fastapi_users.authentication.strategy.base import StrategyTokenResponse
 from fastapi_users.authentication.transport import CookieTransport
 
 COOKIE_MAX_AGE = 3600
@@ -39,7 +40,8 @@ async def test_get_login_response(cookie_transport: CookieTransport):
     httponly = cookie_transport.cookie_httponly
 
     response = Response()
-    login_response = await cookie_transport.get_login_response("TOKEN", response)
+    token = StrategyTokenResponse(access_token="TOKEN")
+    login_response = await cookie_transport.get_login_response(token, response)
 
     assert login_response is None
 

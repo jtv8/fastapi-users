@@ -65,7 +65,11 @@ class JWTStrategy(Strategy[models.UC, models.UD]):
             return None
 
     async def write_token(self, user: models.UD) -> StrategyTokenResponse:
-        data = {"user_id": str(user.id), "aud": self.token_audience}
+        data = {
+            "user_id": str(user.id),  # retained for backward compatibility
+            "sub": str(user.id),
+            "aud": self.token_audience,
+        }
 
         access_token = generate_jwt(
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm

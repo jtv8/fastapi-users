@@ -1,6 +1,7 @@
 import pytest
 from fastapi import Response, status
 
+from fastapi_users.authentication.strategy.base import StrategyTokenResponse
 from fastapi_users.authentication.transport import (
     BearerTransport,
     TransportLogoutNotSupportedError,
@@ -17,7 +18,8 @@ def bearer_transport() -> BearerTransport:
 @pytest.mark.asyncio
 async def test_get_login_response(bearer_transport: BearerTransport):
     response = Response()
-    login_response = await bearer_transport.get_login_response("TOKEN", response)
+    token = StrategyTokenResponse(access_token="TOKEN")
+    login_response = await bearer_transport.get_login_response(token, response)
 
     assert isinstance(login_response, BearerResponse)
 

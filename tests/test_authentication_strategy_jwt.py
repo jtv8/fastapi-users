@@ -79,6 +79,7 @@ def token(jwt_strategy: JWTStrategy):
         data = {"aud": "fastapi-users:auth"}
         if user_id is not None:
             data["user_id"] = str(user_id)
+            data["sub"] = str(user_id)
         return generate_jwt(
             data, jwt_strategy.encode_key, lifetime, algorithm=jwt_strategy.algorithm
         )
@@ -138,12 +139,13 @@ async def test_write_token(jwt_strategy: JWTStrategy, user):
     token = await jwt_strategy.write_token(user)
 
     decoded = decode_jwt(
-        token,
+        token.access_token,
         jwt_strategy.decode_key,
         audience=jwt_strategy.token_audience,
         algorithms=[jwt_strategy.algorithm],
     )
     assert decoded["user_id"] == str(user.id)
+    assert decoded["sub"] == str(user.id)
 
 
 @pytest.mark.parametrize("jwt_strategy", ["HS256", "RS256", "ES256"], indirect=True)
