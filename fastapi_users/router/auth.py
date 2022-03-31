@@ -104,6 +104,8 @@ def get_auth_router(
         user, token = user_token
         return await backend.logout(strategy, user, token, response)
 
+    return router
+
 
 def get_refresh_router(
     backend: AuthenticationBackend,
