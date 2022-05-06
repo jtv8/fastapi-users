@@ -25,7 +25,7 @@ class OAuth2RefreshTokenForm(object):
 
 
 def get_auth_router(
-    backend: AuthenticationBackend,
+    backend: AuthenticationBackend[models.UP, models.ID],
     get_user_manager: UserManagerDependency[models.UP, models.ID],
     authenticator: Authenticator,
     requires_verification: bool = False,
@@ -108,8 +108,8 @@ def get_auth_router(
 
 
 def get_refresh_router(
-    backend: AuthenticationBackend,
-    get_user_manager: UserManagerDependency[models.UC, models.UD],
+    backend: AuthenticationBackend[models.UP, models.ID],
+    get_user_manager: UserManagerDependency[models.UP, models.ID],
 ) -> APIRouter:
     """Generate a router with login/logout routes for an authentication backend."""
     router = APIRouter()
@@ -145,8 +145,8 @@ def get_refresh_router(
     async def refresh(  # type: ignore
         response: Response,
         form_data: OAuth2RefreshTokenForm = Depends(),
-        user_manager: BaseUserManager[models.UC, models.UD] = Depends(get_user_manager),
-        strategy: Strategy[models.UC, models.UD] = Depends(backend.get_strategy),
+        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
+        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
     ):
         user = await strategy.read_token(form_data.refresh_token, user_manager)
         if not user:

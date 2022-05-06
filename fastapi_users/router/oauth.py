@@ -37,24 +37,25 @@ def generate_state_token(
 
 async def do_oauth_login(
     oauth_client: BaseOAuth2[Any],
-    backend: AuthenticationBackend[models.UC, models.UD],
+    backend: AuthenticationBackend[models.UP, models.ID],
     request: Request,
     response: Response,
-    user_manager: BaseUserManager[models.UC, models.UD],
-    strategy: Strategy[models.UC, models.UD],
+    user_manager: BaseUserManager[models.UP, models.ID],
+    strategy: Strategy[models.UP, models.ID],
     token: OAuth2Token,
 ) -> Any:
 
-    new_oauth_account = models.BaseOAuthAccount(
-        oauth_name=oauth_client.name,
-        access_token=token["access_token"],
-        expires_at=token.get("expires_at"),
-        refresh_token=token.get("refresh_token"),
-        account_id=account_id,
-        account_email=account_email,
-    )
+    account_id, account_email = await oauth_client.get_id_email(token["access_token"])
 
-    user = await user_manager.oauth_callback(new_oauth_account, request)
+    user = await user_manager.oauth_callback(
+        oauth_client.name,
+        token["access_token"],
+        account_id,
+        account_email,
+        token.get("expires_at"),
+        token.get("refresh_token"),
+        request,
+    )
 
     if not user.is_active:
         raise HTTPException(
@@ -68,7 +69,7 @@ async def do_oauth_login(
 
 def get_oauth_router(
     oauth_client: BaseOAuth2,
-    backend: AuthenticationBackend,
+    backend: AuthenticationBackend[models.UP, models.ID],
     get_user_manager: UserManagerDependency[models.UP, models.ID],
     state_secret: SecretType,
     redirect_url: Optional[str] = None,

@@ -75,7 +75,7 @@ class FastAPIUsers(Generic[models.UP, models.ID]):
 
     def get_auth_router(
         self,
-        backend: AuthenticationBackend[models.UC, models.UD],
+        backend: AuthenticationBackend[models.UP, models.ID],
         requires_verification: bool = False,
     ) -> APIRouter:
         """
@@ -94,7 +94,7 @@ class FastAPIUsers(Generic[models.UP, models.ID]):
 
     def get_refresh_router(
         self,
-        backend: AuthenticationBackend[models.UC, models.UD],
+        backend: AuthenticationBackend[models.UP, models.ID],
     ) -> APIRouter:
         """
         Return a token refresh router for a given authentication backend.
@@ -102,11 +102,11 @@ class FastAPIUsers(Generic[models.UP, models.ID]):
         :param backend: The authentication backend instance.
         """
         return get_refresh_router(backend, self.get_user_manager)
- 
+
     def get_oauth_router(
         self,
         oauth_client: OAuthClientType,
-        backend: AuthenticationBackend[models.UC, models.UD],
+        backend: AuthenticationBackend[models.UP, models.ID],
         state_secret: SecretType,
         redirect_url: Optional[str] = None,
     ) -> APIRouter:
