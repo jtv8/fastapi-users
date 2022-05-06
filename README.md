@@ -13,7 +13,7 @@
 [![PyPI version](https://badge.fury.io/py/fastapi-users.svg)](https://badge.fury.io/py/fastapi-users)
 [![Downloads](https://pepy.tech/badge/fastapi-users)](https://pepy.tech/project/fastapi-users)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-53-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-55-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <p align="center">
 <a href="https://www.buymeacoffee.com/frankie567"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=frankie567&button_colour=FF5F5F&font_colour=ffffff&font_family=Arial&outline_colour=000000&coffee_colour=FFDD00"></a>
@@ -37,33 +37,33 @@ Add quickly a registration and authentication system to your [FastAPI](https://f
 * [X] Dependency callables to inject current user in route
 * [X] Pluggable password validation
 * [X] Customizable database backend
-    * [X] [SQLAlchemy ORM async](https://docs.sqlalchemy.org/en/14/orm/extensions/asyncio.html) backend included
-    * [X] MongoDB async backend included thanks to [mongodb/motor](https://github.com/mongodb/motor)
-    * [X] [Tortoise ORM](https://tortoise-orm.readthedocs.io/en/latest/) backend included
-    * [X] [ormar](https://collerek.github.io/ormar/) backend included
+    * [X] [SQLAlchemy ORM async](https://docs.sqlalchemy.org/en/14/orm/extensions/asyncio.html) included
+    * [X] [MongoDB with Beanie ODM](https://github.com/roman-right/beanie/) included
 * [X] Multiple customizable authentication backends
     * [X] Transports: Authorization header, Cookie
     * [X] Strategies: JWT, Database, Redis
 * [X] Full OpenAPI schema support, even with several authentication backends
 
-## 📚 Discover my book: *Building Data Science Applications with FastAPI*
+## In a hurry? Discover Fief, the open-source authentication platform
 
-<img src="https://static.packt-cdn.com/products/9781801079211/cover/smaller" alt="Building Data Science Applications with FastAPI" height="256px" align="right">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/fief-dev/.github/main/logos/logo-full-red.svg?sanitize=true" alt="Fief" width="256" style="width: 256px">
+</p>
 
-**Develop, manage, and deploy efficient machine learning applications with Python**
+<img src="https://www.fief.dev/illustrations/guard-right.svg" alt="Fief" height="300" align="right" style="height: 300px">
 
-### What is this book about?
+**Implementing registration, login, social auth is hard and painful. We know it. With our highly secure and open-source users management platform, you can focus on your app while staying in control of your users data.**
 
-This book covers the following exciting features:
+* Based on **FastAPI Users**!
+* **Open-source**: self-host it for free or use our hosted version
+* **Bring your own database**: host your database anywhere, we'll take care of the rest
+* **Pre-built login and registration pages**: clean and fast authentication so you don't have to do it yourself
+* **Official Python client** with built-in **FastAPI integration**
 
-* Explore the basics of modern Python and async I/O programming
-* Get to grips with basic and advanced concepts of the FastAPI framework
-* Implement a FastAPI dependency to efficiently run a machine learning model
-* Integrate a simple face detection algorithm in a FastAPI backend
-* Integrate common Python data science libraries in a web backend
-* Deploy a performant and reliable web backend for a data science application
-
-If you feel this book is for you, get your [copy](https://amzn.to/3kTvgjG) today!
+<p align="center">
+    <a href="https://www.fief.dev"><img width="150px" src="https://raw.githubusercontent.com/fief-dev/.github/main/graphics/join-the-beta-button.svg?sanitize=true" /></a>
+</p>
+<p align="center">It's free!</p>
 
 ## Contributors and sponsors ✨☕️
 
@@ -141,6 +141,8 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://meka.rs"><img src="https://avatars.githubusercontent.com/u/610855?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Goran Mekić</b></sub></a><br /><a href="#platform-mekanix" title="Packaging/porting to new platform">📦</a></td>
     <td align="center"><a href="https://gaganpreet.in/"><img src="https://avatars.githubusercontent.com/u/815873?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Gaganpreet</b></sub></a><br /><a href="https://github.com/fastapi-users/fastapi-users/commits?author=gaganpreet" title="Code">💻</a></td>
     <td align="center"><a href="https://github.com/jtv8"><img src="https://avatars.githubusercontent.com/u/29302451?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Joe Taylor</b></sub></a><br /><a href="https://github.com/fastapi-users/fastapi-users/commits?author=jtv8" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/ricfri"><img src="https://avatars.githubusercontent.com/u/21967765?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Richard Friberg</b></sub></a><br /><a href="https://github.com/fastapi-users/fastapi-users/issues?q=author%3Aricfri" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="http://www.kentonparton.com"><img src="https://avatars.githubusercontent.com/u/20202312?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Kenton Parton</b></sub></a><br /><a href="#financial-KentonParton" title="Financial">💵</a></td>
   </tr>
 </table>
 

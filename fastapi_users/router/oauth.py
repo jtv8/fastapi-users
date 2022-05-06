@@ -44,7 +44,6 @@ async def do_oauth_login(
     strategy: Strategy[models.UC, models.UD],
     token: OAuth2Token,
 ) -> Any:
-    account_id, account_email = await oauth_client.get_id_email(token["access_token"])
 
     new_oauth_account = models.BaseOAuthAccount(
         oauth_name=oauth_client.name,
@@ -68,9 +67,9 @@ async def do_oauth_login(
 
 
 def get_oauth_router(
-    oauth_client: BaseOAuth2[Any],
-    backend: AuthenticationBackend[models.UC, models.UD],
-    get_user_manager: UserManagerDependency[models.UC, models.UD],
+    oauth_client: BaseOAuth2,
+    backend: AuthenticationBackend,
+    get_user_manager: UserManagerDependency[models.UP, models.ID],
     state_secret: SecretType,
     redirect_url: Optional[str] = None,
 ) -> APIRouter:
@@ -145,8 +144,8 @@ def get_oauth_router(
         access_token_state: Tuple[OAuth2Token, str] = Depends(
             oauth2_authorize_callback
         ),
-        user_manager: BaseUserManager[models.UC, models.UD] = Depends(get_user_manager),
-        strategy: Strategy[models.UC, models.UD] = Depends(backend.get_strategy),
+        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
+        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
     ):
         token, state = access_token_state
         try:
