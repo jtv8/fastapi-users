@@ -516,6 +516,51 @@
       "contributions": [
         "financial"
       ]
+    },
+    {
+      "login": "Qwizi",
+      "name": "Adrian Ciołek",
+      "avatar_url": "https://avatars.githubusercontent.com/u/23024321?v=4",
+      "profile": "https://github.com/Qwizi",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "killswitch-GUI",
+      "name": "⭕Alexander Rymdeko-Harvey",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8761706?v=4",
+      "profile": "https://blog.obscuritylabs.com",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "schwannden",
+      "name": "schwannden",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5753086?v=4",
+      "profile": "http://schwannden.com",
+      "contributions": [
+        "maintenance"
+      ]
+    },
+    {
+      "login": "JimScope",
+      "name": "Jimmy Angel Pérez Díaz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/27647007?v=4",
+      "profile": "https://jimscope.is-a.dev",
+      "contributions": [
+        "security"
+      ]
+    },
+    {
+      "login": "austinorr",
+      "name": "Austin Orr",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8422403?v=4",
+      "profile": "http://austinmartinorr.com",
+      "contributions": [
+        "maintenance"
+      ]
     }
   ],
   "contributorsPerLine": 7,
