@@ -25,6 +25,7 @@ async def test_app_client(
     app.include_router(fastapi_users.get_register_router(User, UserCreate))
     app.include_router(fastapi_users.get_reset_password_router())
     app.include_router(fastapi_users.get_auth_router(mock_authentication))
+    app.include_router(fastapi_users.get_refresh_router(mock_authentication))
     app.include_router(
         fastapi_users.get_oauth_router(oauth_client, mock_authentication, secret)
     )
@@ -129,6 +130,7 @@ async def test_app_client(
         ("/reset-password", "POST"),
         ("/login", "POST"),
         ("/logout", "POST"),
+        ("/refresh", "POST"),
         ("/register", "POST"),
         ("/users/d35d213e-f3d8-4f08-954a-7e0d1bea286f", "GET"),
         ("/users/d35d213e-f3d8-4f08-954a-7e0d1bea286f", "PATCH"),
