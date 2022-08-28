@@ -155,14 +155,17 @@ class BaseUserManager(Generic[models.UP, models.ID]):
         expires_at: Optional[int] = None,
         refresh_token: Optional[str] = None,
         request: Optional[Request] = None,
+        *,
+        associate_by_email: bool = False
     ) -> models.UOAP:
         """
         Handle the callback after a successful OAuth authentication.
 
         If the user already exists with this OAuth account, the token is updated.
 
-        If a user with the same e-mail already exists,
-        the OAuth account is linked to it.
+        If a user with the same e-mail already exists and `associate_by_email` is True,
+        the OAuth account is associated to this user.
+        Otherwise, the `UserNotExists` exception is raised.
 
         If the user does not exist, it is created and the on_after_register handler
         is triggered.
@@ -176,6 +179,8 @@ class BaseUserManager(Generic[models.UP, models.ID]):
         fresh access token from the service provider.
         :param request: Optional FastAPI request that
         triggered the operation, defaults to None
+        :param associate_by_email: If True, any existing user with the same
+        e-mail address will be associated to this user. Defaults to False.
         :return: A user.
         """
         oauth_account_dict = {
@@ -191,8 +196,10 @@ class BaseUserManager(Generic[models.UP, models.ID]):
             user = await self.get_by_oauth_account(oauth_name, account_id)
         except exceptions.UserNotExists:
             try:
-                # Link account
+                # Associate account
                 user = await self.get_by_email(account_email)
+                if not associate_by_email:
+                    raise exceptions.UserAlreadyExists()
                 user = await self.user_db.add_oauth_account(user, oauth_account_dict)
             except exceptions.UserNotExists:
                 # Create account
@@ -214,6 +221,48 @@ class BaseUserManager(Generic[models.UP, models.ID]):
                     user = await self.user_db.update_oauth_account(
                         user, existing_oauth_account, oauth_account_dict
                     )
+
+        return user
+
+    async def oauth_associate_callback(
+        self: "BaseUserManager[models.UOAP, models.ID]",
+        user: models.UOAP,
+        oauth_name: str,
+        access_token: str,
+        account_id: str,
+        account_email: str,
+        expires_at: Optional[int] = None,
+        refresh_token: Optional[str] = None,
+        request: Optional[Request] = None,
+    ) -> models.UOAP:
+        """
+        Handle the callback after a successful OAuth association.
+
+        We add this new OAuth account to the given user.
+
+        :param oauth_name: Name of the OAuth client.
+        :param access_token: Valid access token for the service provider.
+        :param account_id: models.ID of the user on the service provider.
+        :param account_email: E-mail of the user on the service provider.
+        :param expires_at: Optional timestamp at which the access token expires.
+        :param refresh_token: Optional refresh token to get a
+        fresh access token from the service provider.
+        :param request: Optional FastAPI request that
+        triggered the operation, defaults to None
+        :return: A user.
+        """
+        oauth_account_dict = {
+            "oauth_name": oauth_name,
+            "access_token": access_token,
+            "account_id": account_id,
+            "account_email": account_email,
+            "expires_at": expires_at,
+            "refresh_token": refresh_token,
+        }
+
+        user = await self.user_db.add_oauth_account(user, oauth_account_dict)
+
+        await self.on_after_update(user, {}, request)
 
         return user
 
@@ -405,13 +454,19 @@ class BaseUserManager(Generic[models.UP, models.ID]):
         await self.on_after_update(updated_user, updated_user_data, request)
         return updated_user
 
-    async def delete(self, user: models.UP) -> None:
+    async def delete(
+        self,
+        user: models.UP,
+        request: Optional[Request] = None,
+    ) -> None:
         """
         Delete a user.
 
         :param user: The user to delete.
         """
+        await self.on_before_delete(user, request)
         await self.user_db.delete(user)
+        await self.on_after_delete(user, request)
 
     async def validate_password(
         self, password: str, user: Union[schemas.UC, models.UP]
@@ -513,6 +568,34 @@ class BaseUserManager(Generic[models.UP, models.ID]):
         *You should overload this method to add your own logic.*
 
         :param user: The user that reset its password.
+        :param request: Optional FastAPI request that
+        triggered the operation, defaults to None.
+        """
+        return  # pragma: no cover
+
+    async def on_before_delete(
+        self, user: models.UP, request: Optional[Request] = None
+    ) -> None:
+        """
+        Perform logic before user delete.
+
+        *You should overload this method to add your own logic.*
+
+        :param user: The user to be deleted
+        :param request: Optional FastAPI request that
+        triggered the operation, defaults to None.
+        """
+        return  # pragma: no cover
+
+    async def on_after_delete(
+        self, user: models.UP, request: Optional[Request] = None
+    ) -> None:
+        """
+        Perform logic before user delete.
+
+        *You should overload this method to add your own logic.*
+
+        :param user: The user to be deleted
         :param request: Optional FastAPI request that
         triggered the operation, defaults to None.
         """

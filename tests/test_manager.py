@@ -193,13 +193,18 @@ class TestOAuthCallback:
 
         assert user_manager_oauth.on_after_register.called is False
 
-    async def test_existing_user_without_oauth(
+    async def test_existing_user_without_oauth_associate(
         self,
         user_manager_oauth: UserManagerMock[UserOAuthModel],
         superuser_oauth: UserOAuthModel,
     ):
         user = await user_manager_oauth.oauth_callback(
-            "service1", "TOKEN", "superuser_oauth1", superuser_oauth.email, 1579000751
+            "service1",
+            "TOKEN",
+            "superuser_oauth1",
+            superuser_oauth.email,
+            1579000751,
+            associate_by_email=True,
         )
 
         assert user.id == superuser_oauth.id
@@ -207,6 +212,21 @@ class TestOAuthCallback:
         assert user.oauth_accounts[0].id is not None
 
         assert user_manager_oauth.on_after_register.called is False
+
+    async def test_existing_user_without_oauth_no_associate(
+        self,
+        user_manager_oauth: UserManagerMock[UserOAuthModel],
+        superuser_oauth: UserOAuthModel,
+    ):
+        with pytest.raises(UserAlreadyExists):
+            await user_manager_oauth.oauth_callback(
+                "service1",
+                "TOKEN",
+                "superuser_oauth1",
+                superuser_oauth.email,
+                1579000751,
+                associate_by_email=False,
+            )
 
     async def test_new_user(self, user_manager_oauth: UserManagerMock[UserOAuthModel]):
         user = await user_manager_oauth.oauth_callback(
@@ -218,6 +238,31 @@ class TestOAuthCallback:
         assert user.oauth_accounts[0].id is not None
 
         assert user_manager_oauth.on_after_register.called is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.manager
+class TestOAuthAssociateCallback:
+    async def test_existing_user_without_oauth_associate(
+        self,
+        user_manager_oauth: UserManagerMock[UserOAuthModel],
+        superuser_oauth: UserOAuthModel,
+    ):
+
+        user = await user_manager_oauth.oauth_associate_callback(
+            superuser_oauth,
+            "service1",
+            "TOKEN",
+            "superuser_oauth1",
+            superuser_oauth.email,
+            1579000751,
+        )
+
+        assert user.id == user.id
+        assert len(user.oauth_accounts) == 1
+        assert user.oauth_accounts[0].id is not None
+
+        assert user_manager_oauth.on_after_update.called is True
 
 
 @pytest.mark.asyncio
@@ -535,6 +580,10 @@ class TestDelete:
         self, user: UserModel, user_manager: UserManagerMock[UserModel]
     ):
         await user_manager.delete(user)
+
+        assert user_manager.on_before_delete.called is True
+
+        assert user_manager.on_after_delete.called is True
 
 
 @pytest.mark.asyncio
