@@ -183,6 +183,34 @@ class TestCallback:
         data = cast(Dict[str, Any], response.json())
         assert data["detail"] == ErrorCode.OAUTH_USER_ALREADY_EXISTS
 
+    async def test_already_exists_error(
+        self,
+        async_method_mocker: AsyncMethodMocker,
+        test_app_client: httpx.AsyncClient,
+        oauth_client: BaseOAuth2,
+        user_oauth: UserOAuthModel,
+        user_manager_oauth: UserManagerMock,
+        access_token: str,
+    ):
+        state_jwt = generate_state_token({}, "SECRET")
+        async_method_mocker(oauth_client, "get_access_token", return_value=access_token)
+        async_method_mocker(
+            oauth_client, "get_id_email", return_value=("user_oauth1", user_oauth.email)
+        )
+        async_method_mocker(
+            user_manager_oauth, "oauth_callback"
+        ).side_effect = exceptions.UserAlreadyExists
+
+        response = await test_app_client.get(
+            "/oauth/callback",
+            params={"code": "CODE", "state": state_jwt},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        data = cast(Dict[str, Any], response.json())
+        assert data["detail"] == ErrorCode.OAUTH_USER_ALREADY_EXISTS
+
     async def test_active_user(
         self,
         async_method_mocker: AsyncMethodMocker,
