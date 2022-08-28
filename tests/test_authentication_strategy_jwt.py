@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+from typing import Optional
+
 import pytest
 
 from fastapi_users.authentication.strategy import (
@@ -6,8 +9,6 @@ from fastapi_users.authentication.strategy import (
 )
 from fastapi_users.jwt import SecretType, decode_jwt, generate_jwt
 from tests.conftest import IDType, UserModel
-
-LIFETIME = 3600
 
 ECC_PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgewlS46hocOLtT9Px
@@ -60,23 +61,61 @@ owIDAQAB
 
 
 @pytest.fixture
-def jwt_strategy(request, secret: SecretType):
+def enable_refresh_token(request) -> bool:
+    return getattr(request, "param", False)
+
+
+@pytest.fixture
+def lifetime_seconds(request) -> Optional[int]:
+    return getattr(request, "param", 3600)
+
+
+@pytest.fixture
+def refresh_token_lifetime_seconds(request) -> Optional[int]:
+    return getattr(request, "param", None)
+
+
+@pytest.fixture
+def jwt_strategy(
+    request,
+    secret: SecretType,
+    lifetime_seconds: Optional[int],
+    enable_refresh_token: bool,
+    refresh_token_lifetime_seconds: Optional[int],
+):
     if request.param == "HS256":
-        return JWTStrategy(secret, LIFETIME)
+        return JWTStrategy(
+            secret,
+            lifetime_seconds,
+            refresh_token=enable_refresh_token,
+            refresh_token_lifetime_seconds=refresh_token_lifetime_seconds,
+        )
     elif request.param == "RS256":
         return JWTStrategy(
-            RSA_PRIVATE_KEY, LIFETIME, algorithm="RS256", public_key=RSA_PUBLIC_KEY
+            RSA_PRIVATE_KEY,
+            lifetime_seconds,
+            algorithm="RS256",
+            public_key=RSA_PUBLIC_KEY,
+            refresh_token=enable_refresh_token,
+            refresh_token_lifetime_seconds=refresh_token_lifetime_seconds,
         )
     elif request.param == "ES256":
         return JWTStrategy(
-            ECC_PRIVATE_KEY, LIFETIME, algorithm="ES256", public_key=ECC_PUBLIC_KEY
+            ECC_PRIVATE_KEY,
+            lifetime_seconds,
+            algorithm="ES256",
+            public_key=ECC_PUBLIC_KEY,
+            refresh_token=enable_refresh_token,
+            refresh_token_lifetime_seconds=refresh_token_lifetime_seconds,
         )
     raise ValueError(f"Unrecognized algorithm: {request.param}")
 
 
 @pytest.fixture
-def token(jwt_strategy: JWTStrategy[UserModel, IDType]):
-    def _token(user_id=None, lifetime=LIFETIME):
+def token(
+    jwt_strategy: JWTStrategy[UserModel, IDType], lifetime_seconds: Optional[int]
+):
+    def _token(user_id=None, lifetime=lifetime_seconds):
         data = {"aud": "fastapi-users:auth"}
         if user_id is not None:
             data["user_id"] = str(user_id)
@@ -138,6 +177,9 @@ class TestReadToken:
 
 
 @pytest.mark.parametrize("jwt_strategy", ["HS256", "RS256", "ES256"], indirect=True)
+@pytest.mark.parametrize("enable_refresh_token", [True, False], indirect=True)
+@pytest.mark.parametrize("lifetime_seconds", [None, 3600], indirect=True)
+@pytest.mark.freeze_time
 @pytest.mark.authentication
 @pytest.mark.asyncio
 async def test_write_token(jwt_strategy: JWTStrategy[UserModel, IDType], user):
@@ -151,6 +193,41 @@ async def test_write_token(jwt_strategy: JWTStrategy[UserModel, IDType], user):
     )
     assert decoded["user_id"] == str(user.id)
     assert decoded["sub"] == str(user.id)
+
+    if jwt_strategy.lifetime_seconds:
+        assert "exp" in decoded
+        expected_exp = datetime.now() + timedelta(seconds=jwt_strategy.lifetime_seconds)
+        assert decoded["exp"] == int(expected_exp.timestamp())
+    else:
+        assert "exp" not in decoded
+
+
+@pytest.mark.parametrize("jwt_strategy", ["HS256", "RS256", "ES256"], indirect=True)
+@pytest.mark.parametrize("enable_refresh_token", [True], indirect=True)
+@pytest.mark.parametrize("refresh_token_lifetime_seconds", [None, 86400], indirect=True)
+@pytest.mark.freeze_time
+@pytest.mark.authentication
+@pytest.mark.asyncio
+async def test_write_refresh_token(jwt_strategy: JWTStrategy[UserModel, IDType], user):
+    token = await jwt_strategy.write_token(user)
+
+    decoded = decode_jwt(
+        token.refresh_token,
+        jwt_strategy.decode_key,
+        audience=jwt_strategy.token_audience,
+        algorithms=[jwt_strategy.algorithm],
+    )
+    assert decoded["user_id"] == str(user.id)
+    assert decoded["sub"] == str(user.id)
+
+    if jwt_strategy.refresh_token_lifetime_seconds:
+        assert "exp" in decoded
+        expected_exp = datetime.now() + timedelta(
+            seconds=jwt_strategy.refresh_token_lifetime_seconds
+        )
+        assert decoded["exp"] == int(expected_exp.timestamp())
+    else:
+        assert "exp" not in decoded
 
 
 @pytest.mark.parametrize("jwt_strategy", ["HS256", "RS256", "ES256"], indirect=True)
