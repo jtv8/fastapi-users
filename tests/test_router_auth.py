@@ -5,8 +5,13 @@ import pytest
 from fastapi import FastAPI, status
 
 from fastapi_users.authentication import Authenticator
-from fastapi_users.router import ErrorCode, get_auth_router
+from fastapi_users.router import ErrorCode, get_auth_router, get_refresh_router
 from tests.conftest import UserModel, get_mock_authentication
+
+
+@pytest.fixture
+def valid_token(verified_user: UserModel) -> str:
+    return str(verified_user.id)
 
 
 @pytest.fixture
@@ -30,9 +35,20 @@ def app_factory(get_user_manager, mock_authentication):
             requires_verification=requires_verification,
         )
 
+        mock_refresh_router = get_refresh_router(
+            mock_authentication,
+            get_user_manager,
+        )
+        mock_bis_refresh_router = get_refresh_router(
+            mock_authentication_bis,
+            get_user_manager,
+        )
+
         app = FastAPI()
         app.include_router(mock_auth_router, prefix="/mock")
         app.include_router(mock_bis_auth_router, prefix="/mock-bis")
+        app.include_router(mock_refresh_router, prefix="/mock")
+        app.include_router(mock_bis_refresh_router, prefix="/mock-bis")
 
         return app
 
@@ -205,6 +221,40 @@ class TestLogout:
             path, headers={"Authorization": f"Bearer {verified_user.id}"}
         )
         assert response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.router
+@pytest.mark.parametrize("path", ["/mock", "/mock-bis"])
+@pytest.mark.asyncio
+class TestRefresh:
+    async def test_malformed_token(
+        self,
+        path,
+        test_app_client: Tuple[httpx.AsyncClient, bool],
+    ):
+        client, _ = test_app_client
+        data = {"grant_type": "refresh_token", "refresh_token": "foo"}
+        response = await client.post(f"{path}/refresh", data=data)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    async def test_valid_token(
+        self,
+        path,
+        test_app_client: Tuple[httpx.AsyncClient, bool],
+        valid_token: str,
+    ):
+        client, _ = test_app_client
+
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": valid_token,
+        }
+        response = await client.post(f"{path}/refresh", data=data)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {
+            "access_token": valid_token,
+            "token_type": "bearer",
+        }
 
 
 @pytest.mark.asyncio
