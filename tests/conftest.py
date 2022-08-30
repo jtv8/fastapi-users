@@ -524,35 +524,91 @@ class MockTransport(BearerTransport):
 
 
 class MockStrategy(Strategy[UserModel, IDType]):
+    def __init__(self, token_prefix: str = "access"):
+        self.token_prefix = token_prefix
+
     async def read_token(
         self, token: Optional[str], user_manager: BaseUserManager[UserModel, IDType]
     ) -> Optional[UserModel]:
         if token is not None:
+            prefix, _, user_id = token.partition(":")
+            if prefix != self.token_prefix:
+                return None
             try:
-                parsed_id = user_manager.parse_id(token)
+                parsed_id = user_manager.parse_id(user_id)
                 return await user_manager.get(parsed_id)
             except (exceptions.InvalidID, exceptions.UserNotExists):
                 return None
         return None
 
     async def write_token(self, user: UserModel) -> str:
-        return str(user.id)
+        return f"{self.token_prefix}:{user.id}"
 
     async def destroy_token(self, token: str, user: UserModel) -> None:
         return None
 
 
-def get_mock_authentication(name: str):
+def mock_valid_access_token(user: UserModel) -> str:
+    return f"access:{user.id}"
+
+
+def mock_valid_refresh_token(user: UserModel) -> str:
+    return f"refresh:{user.id}"
+
+
+def mock_authorized_headers(user: UserModel) -> Dict[str, str]:
+    return {"Authorization": f"Bearer {mock_valid_access_token(user)}"}
+
+
+def assert_valid_access_token(user: UserModel, token: str) -> None:
+    assert token == mock_valid_access_token(user)
+
+
+def assert_valid_refresh_token(user: UserModel, token: str) -> None:
+    assert token == mock_valid_refresh_token(user)
+
+
+def assert_valid_token_response(
+    user: UserModel,
+    token_response: Dict[str, str],
+    expecting_refresh_token: bool,
+) -> None:
+    assert isinstance(token_response, dict)
+    assert set(token_response.keys()).issubset(
+        {"token_type", "access_token", "refresh_token"}
+    )
+    assert "token_type" in token_response
+    assert "access_token" in token_response
+    assert ("refresh_token" in token_response) == expecting_refresh_token
+    assert_valid_access_token(user, token_response["access_token"])
+    if expecting_refresh_token:
+        assert_valid_refresh_token(user, token_response["refresh_token"])
+
+
+@pytest.fixture
+def with_refresh_strategy(request) -> bool:
+    return getattr(request, "param", False)
+
+
+def get_mock_authentication(name: str, has_refresh_strategy: bool = False):
     return AuthenticationBackend(
         name=name,
         transport=MockTransport(tokenUrl="/login"),
-        get_strategy=lambda: MockStrategy(),
+        get_strategy=lambda: MockStrategy(token_prefix="access"),
+        get_refresh_strategy=(
+            lambda: MockStrategy(token_prefix="refresh")
+            if has_refresh_strategy
+            else None
+        ),
     )
 
 
 @pytest.fixture
-def mock_authentication():
-    return get_mock_authentication(name="mock")
+def mock_authentication(with_refresh_strategy: bool):
+    return get_mock_authentication(
+        name="mock",
+        has_refresh_strategy=with_refresh_strategy,
+    )
 
 
 @pytest.fixture

@@ -6,13 +6,20 @@ from fastapi import FastAPI, status
 
 from fastapi_users.authentication import Authenticator
 from fastapi_users.router import ErrorCode, get_auth_router
-from tests.conftest import UserModel, get_mock_authentication
+from tests.conftest import (
+    UserModel,
+    assert_valid_token_response,
+    get_mock_authentication,
+    mock_authorized_headers,
+)
 
 
 @pytest.fixture
-def app_factory(get_user_manager, mock_authentication):
+def app_factory(get_user_manager, mock_authentication, with_refresh_strategy: bool):
     def _app_factory(requires_verification: bool) -> FastAPI:
-        mock_authentication_bis = get_mock_authentication(name="mock-bis")
+        mock_authentication_bis = get_mock_authentication(
+            name="mock-bis", has_refresh_strategy=with_refresh_strategy
+        )
         authenticator = Authenticator(
             [mock_authentication, mock_authentication_bis], get_user_manager
         )
@@ -55,6 +62,7 @@ async def test_app_client(
 
 @pytest.mark.router
 @pytest.mark.parametrize("path", ["/mock/login", "/mock-bis/login"])
+@pytest.mark.parametrize("with_refresh_strategy", [True, False], indirect=True)
 @pytest.mark.asyncio
 class TestLogin:
     async def test_empty_body(
@@ -119,6 +127,7 @@ class TestLogin:
         email,
         test_app_client: Tuple[httpx.AsyncClient, bool],
         user: UserModel,
+        with_refresh_strategy: bool,
     ):
         client, requires_verification = test_app_client
         data = {"username": email, "password": "guinevere"}
@@ -129,10 +138,9 @@ class TestLogin:
             assert data["detail"] == ErrorCode.LOGIN_USER_NOT_VERIFIED
         else:
             assert response.status_code == status.HTTP_200_OK
-            assert response.json() == {
-                "access_token": str(user.id),
-                "token_type": "bearer",
-            }
+            assert_valid_token_response(
+                user, response.json(), expecting_refresh_token=with_refresh_strategy
+            )
 
     @pytest.mark.parametrize("email", ["lake.lady@camelot.bt", "Lake.Lady@camelot.bt"])
     async def test_valid_credentials_verified(
@@ -141,15 +149,17 @@ class TestLogin:
         email,
         test_app_client: Tuple[httpx.AsyncClient, bool],
         verified_user: UserModel,
+        with_refresh_strategy: bool,
     ):
         client, _ = test_app_client
         data = {"username": email, "password": "excalibur"}
         response = await client.post(path, data=data)
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == {
-            "access_token": str(verified_user.id),
-            "token_type": "bearer",
-        }
+        assert_valid_token_response(
+            verified_user,
+            response.json(),
+            expecting_refresh_token=with_refresh_strategy,
+        )
 
     async def test_inactive_user(
         self,
@@ -185,9 +195,7 @@ class TestLogout:
         user: UserModel,
     ):
         client, requires_verification = test_app_client
-        response = await client.post(
-            path, headers={"Authorization": f"Bearer {user.id}"}
-        )
+        response = await client.post(path, headers=mock_authorized_headers(user))
         if requires_verification:
             assert response.status_code == status.HTTP_403_FORBIDDEN
         else:
@@ -202,7 +210,7 @@ class TestLogout:
     ):
         client, _ = test_app_client
         response = await client.post(
-            path, headers={"Authorization": f"Bearer {verified_user.id}"}
+            path, headers=mock_authorized_headers(verified_user)
         )
         assert response.status_code == status.HTTP_200_OK
 

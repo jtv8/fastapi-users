@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -27,12 +27,52 @@ def generate_state_token(
     return generate_jwt(data, secret, lifetime_seconds)
 
 
+async def do_oauth_login(
+    oauth_client: BaseOAuth2[Any],
+    backend: AuthenticationBackend[models.UP, models.ID],
+    request: Request,
+    response: Response,
+    user_manager: BaseUserManager[models.UP, models.ID],
+    strategy: Strategy[models.UP, models.ID],
+    token: OAuth2Token,
+    associate_by_email: bool,
+) -> Any:
+
+    account_id, account_email = await oauth_client.get_id_email(token["access_token"])
+
+    try:
+        user = await user_manager.oauth_callback(
+            oauth_client.name,
+            token["access_token"],
+            account_id,
+            account_email,
+            token.get("expires_at"),
+            token.get("refresh_token"),
+            request,
+            associate_by_email=associate_by_email,
+        )
+    except UserAlreadyExists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorCode.OAUTH_USER_ALREADY_EXISTS,
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
+        )
+
+    # Authenticate
+    return await backend.login(strategy, user, response)
+
+
 def get_oauth_router(
     oauth_client: BaseOAuth2,
-    backend: AuthenticationBackend,
+    backend: AuthenticationBackend[models.UP, models.ID],
     get_user_manager: UserManagerDependency[models.UP, models.ID],
     state_secret: SecretType,
-    redirect_url: str = None,
+    redirect_url: Optional[str] = None,
     associate_by_email: bool = False,
 ) -> APIRouter:
     """Generate a router with the OAuth routes."""
@@ -55,7 +95,7 @@ def get_oauth_router(
         name=f"oauth:{oauth_client.name}.{backend.name}.authorize",
         response_model=OAuth2AuthorizeResponse,
     )
-    async def authorize(
+    async def authorize(  # type: ignore
         request: Request, scopes: List[str] = Query(None)
     ) -> OAuth2AuthorizeResponse:
         if redirect_url is not None:
@@ -77,6 +117,8 @@ def get_oauth_router(
         "/callback",
         name=callback_route_name,
         description="The response varies based on the authentication backend used.",
+        response_model=backend.transport.response_model,
+        response_model_exclude_none=True,
         responses={
             status.HTTP_400_BAD_REQUEST: {
                 "model": ErrorModel,
@@ -95,9 +137,10 @@ def get_oauth_router(
                     }
                 },
             },
+            **backend.transport.get_openapi_login_responses_success(),
         },
     )
-    async def callback(
+    async def callback(  # type: ignore
         request: Request,
         response: Response,
         access_token_state: Tuple[OAuth2Token, str] = Depends(
@@ -107,40 +150,21 @@ def get_oauth_router(
         strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
     ):
         token, state = access_token_state
-        account_id, account_email = await oauth_client.get_id_email(
-            token["access_token"]
-        )
-
         try:
             decode_jwt(state, state_secret, [STATE_TOKEN_AUDIENCE])
         except jwt.DecodeError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user = await user_manager.oauth_callback(
-                oauth_client.name,
-                token["access_token"],
-                account_id,
-                account_email,
-                token.get("expires_at"),
-                token.get("refresh_token"),
-                request,
-                associate_by_email=associate_by_email,
-            )
-        except UserAlreadyExists:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorCode.OAUTH_USER_ALREADY_EXISTS,
-            )
-
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
-            )
-
-        # Authenticate
-        return await backend.login(strategy, user, response)
+        return await do_oauth_login(
+            oauth_client,
+            backend,
+            request,
+            response,
+            user_manager,
+            strategy,
+            token,
+            associate_by_email,
+        )
 
     return router
 

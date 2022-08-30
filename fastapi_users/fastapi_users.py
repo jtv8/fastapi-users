@@ -8,6 +8,7 @@ from fastapi_users.jwt import SecretType
 from fastapi_users.manager import UserManagerDependency
 from fastapi_users.router import (
     get_auth_router,
+    get_refresh_router,
     get_register_router,
     get_reset_password_router,
     get_users_router,
@@ -87,6 +88,16 @@ class FastAPIUsers(Generic[models.UP, models.ID]):
             self.authenticator,
             requires_verification,
         )
+
+    def get_refresh_router(
+        self,
+        backend: AuthenticationBackend[models.UP, models.ID],
+    ) -> APIRouter:
+        """
+        Return a token refresh router for a given authentication backend.
+        :param backend: The authentication backend instance.
+        """
+        return get_refresh_router(backend, self.get_user_manager)
 
     def get_oauth_router(
         self,

@@ -1,4 +1,4 @@
-from typing import Any, Generic
+from typing import Any, Generic, Optional
 
 from fastapi import Response
 
@@ -10,6 +10,7 @@ from fastapi_users.authentication.strategy import (
 from fastapi_users.authentication.transport import (
     Transport,
     TransportLogoutNotSupportedError,
+    TransportTokenResponse,
 )
 from fastapi_users.types import DependencyCallable
 
@@ -34,19 +35,28 @@ class AuthenticationBackend(Generic[models.UP, models.ID]):
         name: str,
         transport: Transport,
         get_strategy: DependencyCallable[Strategy[models.UP, models.ID]],
+        get_refresh_strategy: Optional[
+            DependencyCallable[Strategy[models.UP, models.ID]]
+        ] = None,
     ):
         self.name = name
         self.transport = transport
         self.get_strategy = get_strategy
+        self.get_refresh_strategy = get_refresh_strategy
 
     async def login(
         self,
         strategy: Strategy[models.UP, models.ID],
         user: models.UP,
         response: Response,
+        refresh_strategy: Optional[Strategy[models.UP, models.ID]] = None,
     ) -> Any:
-        token = await strategy.write_token(user)
-        return await self.transport.get_login_response(token, response)
+        token_response = TransportTokenResponse(
+            access_token=await strategy.write_token(user)
+        )
+        if refresh_strategy:
+            token_response.refresh_token = await refresh_strategy.write_token(user)
+        return await self.transport.get_login_response(token_response, response)
 
     async def logout(
         self,

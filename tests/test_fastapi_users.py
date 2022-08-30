@@ -5,7 +5,14 @@ import pytest
 from fastapi import Depends, FastAPI, status
 
 from fastapi_users import FastAPIUsers
-from tests.conftest import IDType, User, UserCreate, UserModel, UserUpdate
+from tests.conftest import (
+    IDType,
+    User,
+    UserCreate,
+    UserModel,
+    UserUpdate,
+    mock_authorized_headers,
+)
 
 
 @pytest.fixture
@@ -25,6 +32,8 @@ async def test_app_client(
     app.include_router(fastapi_users.get_register_router(User, UserCreate))
     app.include_router(fastapi_users.get_reset_password_router())
     app.include_router(fastapi_users.get_auth_router(mock_authentication))
+    if mock_authentication.get_refresh_strategy is not None:
+        app.include_router(fastapi_users.get_refresh_router(mock_authentication))
     app.include_router(
         fastapi_users.get_oauth_router(oauth_client, mock_authentication, secret)
     )
@@ -145,6 +154,20 @@ async def test_route_exists(test_app_client: httpx.AsyncClient, path: str, metho
 
 @pytest.mark.fastapi_users
 @pytest.mark.asyncio
+@pytest.mark.parametrize("with_refresh_strategy", [True], indirect=True)
+@pytest.mark.parametrize("path,method", [("/refresh", "POST")])
+async def test_refresh_route_exists(
+    test_app_client: httpx.AsyncClient, path: str, method: str
+):
+    response = await test_app_client.request(method, path)
+    assert response.status_code not in (
+        status.HTTP_404_NOT_FOUND,
+        status.HTTP_405_METHOD_NOT_ALLOWED,
+    )
+
+
+@pytest.mark.fastapi_users
+@pytest.mark.asyncio
 async def test_custom_users_route_not_catched(test_app_client: httpx.AsyncClient):
     response = await test_app_client.request("DELETE", "/users/me")
     assert response.status_code == status.HTTP_200_OK
@@ -167,7 +190,7 @@ class TestGetCurrentUser:
         self, test_app_client: httpx.AsyncClient, user: UserModel
     ):
         response = await test_app_client.get(
-            "/current-user", headers={"Authorization": f"Bearer {user.id}"}
+            "/current-user", headers=mock_authorized_headers(user)
         )
         assert response.status_code == status.HTTP_200_OK
 
@@ -198,7 +221,7 @@ class TestGetCurrentActiveUser:
         self, test_app_client: httpx.AsyncClient, user: UserModel
     ):
         response = await test_app_client.get(
-            "/current-active-user", headers={"Authorization": f"Bearer {user.id}"}
+            "/current-active-user", headers=mock_authorized_headers(user)
         )
         assert response.status_code == status.HTTP_200_OK
 
@@ -221,7 +244,7 @@ class TestGetCurrentVerifiedUser:
     ):
         response = await test_app_client.get(
             "/current-verified-user",
-            headers={"Authorization": f"Bearer {user.id}"},
+            headers=mock_authorized_headers(user),
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -230,7 +253,7 @@ class TestGetCurrentVerifiedUser:
     ):
         response = await test_app_client.get(
             "/current-verified-user",
-            headers={"Authorization": f"Bearer {verified_user.id}"},
+            headers=mock_authorized_headers(verified_user),
         )
         assert response.status_code == status.HTTP_200_OK
 
@@ -252,7 +275,7 @@ class TestGetCurrentSuperuser:
         self, test_app_client: httpx.AsyncClient, user: UserModel
     ):
         response = await test_app_client.get(
-            "/current-superuser", headers={"Authorization": f"Bearer {user.id}"}
+            "/current-superuser", headers=mock_authorized_headers(user)
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -260,7 +283,7 @@ class TestGetCurrentSuperuser:
         self, test_app_client: httpx.AsyncClient, superuser: UserModel
     ):
         response = await test_app_client.get(
-            "/current-superuser", headers={"Authorization": f"Bearer {superuser.id}"}
+            "/current-superuser", headers=mock_authorized_headers(superuser)
         )
         assert response.status_code == status.HTTP_200_OK
 
@@ -283,7 +306,7 @@ class TestGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/current-verified-superuser",
-            headers={"Authorization": f"Bearer {user.id}"},
+            headers=mock_authorized_headers(user),
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -292,7 +315,7 @@ class TestGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/current-verified-superuser",
-            headers={"Authorization": f"Bearer {verified_user.id}"},
+            headers=mock_authorized_headers(verified_user),
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -301,7 +324,7 @@ class TestGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/current-verified-superuser",
-            headers={"Authorization": f"Bearer {superuser.id}"},
+            headers=mock_authorized_headers(superuser),
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -310,7 +333,7 @@ class TestGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/current-verified-superuser",
-            headers={"Authorization": f"Bearer {verified_superuser.id}"},
+            headers=mock_authorized_headers(verified_superuser),
         )
         assert response.status_code == status.HTTP_200_OK
 
@@ -334,7 +357,7 @@ class TestOptionalGetCurrentUser:
         self, test_app_client: httpx.AsyncClient, user: UserModel
     ):
         response = await test_app_client.get(
-            "/optional-current-user", headers={"Authorization": f"Bearer {user.id}"}
+            "/optional-current-user", headers=mock_authorized_headers(user)
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is not None
@@ -360,7 +383,7 @@ class TestOptionalGetCurrentVerifiedUser:
     ):
         response = await test_app_client.get(
             "/optional-current-verified-user",
-            headers={"Authorization": f"Bearer {user.id}"},
+            headers=mock_authorized_headers(user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is None
@@ -370,7 +393,7 @@ class TestOptionalGetCurrentVerifiedUser:
     ):
         response = await test_app_client.get(
             "/optional-current-verified-user",
-            headers={"Authorization": f"Bearer {verified_user.id}"},
+            headers=mock_authorized_headers(verified_user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is not None
@@ -396,7 +419,7 @@ class TestOptionalGetCurrentActiveUser:
     ):
         response = await test_app_client.get(
             "/optional-current-active-user",
-            headers={"Authorization": f"Bearer {inactive_user.id}"},
+            headers=mock_authorized_headers(inactive_user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is None
@@ -406,7 +429,7 @@ class TestOptionalGetCurrentActiveUser:
     ):
         response = await test_app_client.get(
             "/optional-current-active-user",
-            headers={"Authorization": f"Bearer {user.id}"},
+            headers=mock_authorized_headers(user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is not None
@@ -432,7 +455,7 @@ class TestOptionalGetCurrentSuperuser:
     ):
         response = await test_app_client.get(
             "/optional-current-superuser",
-            headers={"Authorization": f"Bearer {user.id}"},
+            headers=mock_authorized_headers(user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is None
@@ -442,7 +465,7 @@ class TestOptionalGetCurrentSuperuser:
     ):
         response = await test_app_client.get(
             "/optional-current-superuser",
-            headers={"Authorization": f"Bearer {superuser.id}"},
+            headers=mock_authorized_headers(superuser),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is not None
@@ -469,7 +492,7 @@ class TestOptionalGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/optional-current-verified-superuser",
-            headers={"Authorization": f"Bearer {user.id}"},
+            headers=mock_authorized_headers(user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is None
@@ -479,7 +502,7 @@ class TestOptionalGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/optional-current-verified-superuser",
-            headers={"Authorization": f"Bearer {verified_user.id}"},
+            headers=mock_authorized_headers(verified_user),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is None
@@ -489,7 +512,7 @@ class TestOptionalGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/optional-current-verified-superuser",
-            headers={"Authorization": f"Bearer {superuser.id}"},
+            headers=mock_authorized_headers(superuser),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is None
@@ -499,7 +522,7 @@ class TestOptionalGetCurrentVerifiedSuperuser:
     ):
         response = await test_app_client.get(
             "/optional-current-verified-superuser",
-            headers={"Authorization": f"Bearer {verified_superuser.id}"},
+            headers=mock_authorized_headers(verified_superuser),
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() is not None

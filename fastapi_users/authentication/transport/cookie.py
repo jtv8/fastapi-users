@@ -3,11 +3,15 @@ from typing import Any, Optional
 from fastapi import Response, status
 from fastapi.security import APIKeyCookie
 
-from fastapi_users.authentication.transport.base import Transport
+from fastapi_users.authentication.transport.base import (
+    TransportTokenResponse,
+    Transport,
+)
 from fastapi_users.openapi import OpenAPIResponseType
 
 
 class CookieTransport(Transport):
+    response_model = None
     scheme: APIKeyCookie
 
     def __init__(
@@ -29,10 +33,12 @@ class CookieTransport(Transport):
         self.cookie_samesite = cookie_samesite
         self.scheme = APIKeyCookie(name=self.cookie_name, auto_error=False)
 
-    async def get_login_response(self, token: str, response: Response) -> Any:
+    async def get_login_response(
+        self, token: TransportTokenResponse, response: Response
+    ) -> Any:
         response.set_cookie(
             self.cookie_name,
-            token,
+            token.access_token,
             max_age=self.cookie_max_age,
             path=self.cookie_path,
             domain=self.cookie_domain,

@@ -19,6 +19,8 @@ from tests.conftest import (
     UserManagerMock,
     UserModel,
     UserOAuthModel,
+    assert_valid_token_response,
+    mock_authorized_headers,
 )
 
 
@@ -158,8 +160,6 @@ class TestCallback:
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-        get_id_email_mock.assert_called_once_with("TOKEN")
-
     async def test_already_exists_error(
         self,
         async_method_mocker: AsyncMethodMocker,
@@ -214,7 +214,7 @@ class TestCallback:
         assert response.status_code == status.HTTP_200_OK
 
         data = cast(Dict[str, Any], response.json())
-        assert data["access_token"] == str(user_oauth.id)
+        assert_valid_token_response(user_oauth, data, expecting_refresh_token=False)
 
     async def test_inactive_user(
         self,
@@ -275,7 +275,7 @@ class TestCallback:
         )
 
         data = cast(Dict[str, Any], response.json())
-        assert data["access_token"] == str(user_oauth.id)
+        assert_valid_token_response(user_oauth, data, expecting_refresh_token=False)
 
 
 @pytest.mark.router
@@ -295,7 +295,7 @@ class TestAssociateAuthorize:
         response = await test_app_client.get(
             "/oauth-associate/authorize",
             params={"scopes": ["scope1", "scope2"]},
-            headers={"Authorization": f"Bearer {inactive_user_oauth.id}"},
+            headers=mock_authorized_headers(inactive_user_oauth),
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -314,7 +314,7 @@ class TestAssociateAuthorize:
         response = await test_app_client.get(
             "/oauth-associate/authorize",
             params={"scopes": ["scope1", "scope2"]},
-            headers={"Authorization": f"Bearer {user_oauth.id}"},
+            headers=mock_authorized_headers(user_oauth),
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -337,7 +337,7 @@ class TestAssociateAuthorize:
         response = await test_app_client_redirect_url.get(
             "/oauth-associate/authorize",
             params={"scopes": ["scope1", "scope2"]},
-            headers={"Authorization": f"Bearer {user_oauth.id}"},
+            headers=mock_authorized_headers(user_oauth),
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -377,7 +377,7 @@ class TestAssociateCallback:
         response = await test_app_client.get(
             "/oauth-associate/callback",
             params={"code": "CODE", "state": "STATE"},
-            headers={"Authorization": f"Bearer {inactive_user_oauth.id}"},
+            headers=mock_authorized_headers(inactive_user_oauth),
         )
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -398,11 +398,9 @@ class TestAssociateCallback:
         response = await test_app_client.get(
             "/oauth-associate/callback",
             params={"code": "CODE", "state": "STATE"},
-            headers={"Authorization": f"Bearer {user_oauth.id}"},
+            headers=mock_authorized_headers(user_oauth),
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-        get_id_email_mock.assert_called_once_with("TOKEN")
 
     async def test_state_with_different_user_id(
         self,
@@ -422,7 +420,7 @@ class TestAssociateCallback:
         response = await test_app_client.get(
             "/oauth-associate/callback",
             params={"code": "CODE", "state": state_jwt},
-            headers={"Authorization": f"Bearer {user_oauth.id}"},
+            headers=mock_authorized_headers(user_oauth),
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -449,7 +447,7 @@ class TestAssociateCallback:
         response = await test_app_client.get(
             "/oauth-associate/callback",
             params={"code": "CODE", "state": state_jwt},
-            headers={"Authorization": f"Bearer {user_oauth.id}"},
+            headers=mock_authorized_headers(user_oauth),
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -480,7 +478,7 @@ class TestAssociateCallback:
         response = await test_app_client_redirect_url.get(
             "/oauth-associate/callback",
             params={"code": "CODE", "state": state_jwt},
-            headers={"Authorization": f"Bearer {user_oauth.id}"},
+            headers=mock_authorized_headers(user_oauth),
         )
 
         assert response.status_code == status.HTTP_200_OK
