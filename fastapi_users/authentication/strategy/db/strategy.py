@@ -6,6 +6,7 @@ from fastapi_users import exceptions, models
 from fastapi_users.authentication.strategy.base import Strategy
 from fastapi_users.authentication.strategy.db.adapter import AccessTokenDatabase
 from fastapi_users.authentication.strategy.db.models import AP
+from fastapi_users.authentication.token import TokenData
 from fastapi_users.manager import BaseUserManager
 
 
@@ -20,7 +21,7 @@ class DatabaseStrategy(
 
     async def read_token(
         self, token: Optional[str], user_manager: BaseUserManager[models.UP, models.ID]
-    ) -> Optional[models.UP]:
+    ) -> Optional[TokenData[models.UP]]:
         if token is None:
             return None
 
@@ -40,8 +41,11 @@ class DatabaseStrategy(
         except (exceptions.UserNotExists, exceptions.InvalidID):
             return None
 
-    async def write_token(self, user: models.UP) -> str:
-        access_token_dict = self._create_access_token_dict(user)
+    async def write_token(
+        self,
+        token_data: TokenData[models.UP],
+    ) -> str:
+        access_token_dict = self._create_access_token_dict(token_data)
         access_token = await self.database.create(access_token_dict)
         return access_token.token
 
@@ -50,6 +54,12 @@ class DatabaseStrategy(
         if access_token is not None:
             await self.database.delete(access_token)
 
-    def _create_access_token_dict(self, user: models.UP) -> Dict[str, Any]:
+    def _create_access_token_dict(
+        self, token_data: TokenData[models.UP]
+    ) -> Dict[str, Any]:
         token = secrets.token_urlsafe()
-        return {"token": token, "user_id": user.id}
+        return {
+            "token": token,
+            "user_id": str(token_data.user.id),
+            **token_data.dict(exclude={"user"}),
+        }

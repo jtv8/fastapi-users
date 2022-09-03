@@ -1,10 +1,11 @@
 import secrets
-from typing import Generic, Optional
+from typing import Any, Dict, Generic, Optional
 
 import redis.asyncio
 
 from fastapi_users import exceptions, models
 from fastapi_users.authentication.strategy.base import Strategy
+from fastapi_users.authentication.token import TokenData
 from fastapi_users.manager import BaseUserManager
 
 
@@ -22,7 +23,7 @@ class RedisStrategy(Strategy[models.UP, models.ID], Generic[models.UP, models.ID
 
     async def read_token(
         self, token: Optional[str], user_manager: BaseUserManager[models.UP, models.ID]
-    ) -> Optional[models.UP]:
+    ) -> Optional[TokenData[models.UP]]:
         if token is None:
             return None
 
@@ -36,7 +37,10 @@ class RedisStrategy(Strategy[models.UP, models.ID], Generic[models.UP, models.ID
         except (exceptions.UserNotExists, exceptions.InvalidID):
             return None
 
-    async def write_token(self, user: models.UP) -> str:
+    async def write_token(
+        self,
+        token_data: TokenData[models.UP],
+    ) -> str:
         token = secrets.token_urlsafe()
         await self.redis.set(
             f"{self.key_prefix}{token}", str(user.id), ex=self.lifetime_seconds

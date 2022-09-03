@@ -139,7 +139,10 @@ class TestLogin:
         else:
             assert response.status_code == status.HTTP_200_OK
             assert_valid_token_response(
-                user, response.json(), expecting_refresh_token=with_refresh_strategy
+                user,
+                response.json(),
+                expecting_refresh_token=with_refresh_strategy,
+                expected_access_token_properties={"fresh": True},
             )
 
     @pytest.mark.parametrize("email", ["lake.lady@camelot.bt", "Lake.Lady@camelot.bt"])
@@ -159,6 +162,7 @@ class TestLogin:
             verified_user,
             response.json(),
             expecting_refresh_token=with_refresh_strategy,
+            expected_access_token_properties={"fresh": True},
         )
 
     async def test_inactive_user(

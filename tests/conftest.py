@@ -1,6 +1,8 @@
 import asyncio
 import dataclasses
+import json
 import uuid
+from datetime import datetime, timedelta
 from typing import (
     Any,
     AsyncGenerator,
@@ -25,6 +27,7 @@ from pytest_mock import MockerFixture
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport
 from fastapi_users.authentication.strategy import Strategy
+from fastapi_users.authentication.token import TokenData
 from fastapi_users.db import BaseUserDatabase
 from fastapi_users.jwt import SecretType
 from fastapi_users.manager import BaseUserManager, UUIDIDMixin
@@ -166,6 +169,49 @@ def user() -> UserModel:
     return UserModel(
         email="king.arthur@camelot.bt",
         hashed_password=guinevere_password_hash,
+    )
+
+
+@pytest.fixture(params=[True, False])
+def fresh(request: pytest.FixtureRequest) -> bool:
+    return request.param  # type: ignore
+
+
+@pytest.fixture(params=[True, False])
+def expired(request: pytest.FixtureRequest) -> bool:
+    return request.param  # type: ignore
+
+
+@pytest.fixture(
+    params=[
+        [],
+        ["fastapi-users:user"],
+        ["fastapi-users:user", "fastapi-users:superuser"],
+        ["fastapi-users:refresh"],
+    ]
+)
+def scopes(request: pytest.FixtureRequest) -> List[str]:
+    return request.param  # type: ignore
+
+
+@pytest.fixture
+def token_data(
+    user: UserModel, fresh: bool, expired: bool, scopes: List[str]
+) -> TokenData[UserModel]:
+
+    last_authenticated = datetime.now() if fresh else datetime.now() - timedelta(days=1)
+
+    if expired:
+        expires_at = datetime.now() - timedelta(minutes=30)
+    else:
+        expires_at = datetime.now() + timedelta(minutes=30)
+
+    return TokenData(
+        user=user,
+        issued_at=expires_at - timedelta(hours=1),
+        expires_at=expires_at,
+        last_authenticated=last_authenticated,
+        scopes=scopes,
     )
 
 
@@ -524,54 +570,87 @@ class MockTransport(BearerTransport):
 
 
 class MockStrategy(Strategy[UserModel, IDType]):
-    def __init__(self, token_prefix: str = "access"):
-        self.token_prefix = token_prefix
+    def __init__(self, token_type: str = "access"):
+        self.token_type = token_type
 
     async def read_token(
         self, token: Optional[str], user_manager: BaseUserManager[UserModel, IDType]
     ) -> Optional[UserModel]:
         if token is not None:
-            prefix, _, user_id = token.partition(":")
-            if prefix != self.token_prefix:
+            try:
+                token_data = json.loads(token)
+            except json.JSONDecodeError:
+                return None
+            if token_data.get("token_type") != self.token_type:
                 return None
             try:
-                parsed_id = user_manager.parse_id(user_id)
+                parsed_id = user_manager.parse_id(token_data.get("user_id"))
                 return await user_manager.get(parsed_id)
             except (exceptions.InvalidID, exceptions.UserNotExists):
                 return None
         return None
 
-    async def write_token(self, user: UserModel) -> str:
-        return f"{self.token_prefix}:{user.id}"
+    async def write_token(
+        self,
+        user: UserModel,
+        additional_properties: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        return mock_token(user, self.token_type, additional_properties)
 
     async def destroy_token(self, token: str, user: UserModel) -> None:
         return None
 
 
-def mock_valid_access_token(user: UserModel) -> str:
-    return f"access:{user.id}"
+def mock_token(
+    user: UserModel,
+    token_type: str,
+    token_properties: Optional[Dict[str, Any]] = None,
+) -> str:
+    token_properties = token_properties or {}
+    token_data = {"token_type": token_type, "user_id": str(user.id), **token_properties}
+    return json.dumps(token_data)
 
 
-def mock_valid_refresh_token(user: UserModel) -> str:
-    return f"refresh:{user.id}"
+def mock_valid_access_token(
+    user: UserModel,
+    token_properties: Optional[Dict[str, Any]] = None,
+) -> str:
+    return mock_token(user, "access", token_properties)
+
+
+def mock_valid_refresh_token(
+    user: UserModel,
+    token_properties: Optional[Dict[str, Any]] = None,
+) -> str:
+    return mock_token(user, "refresh", token_properties)
 
 
 def mock_authorized_headers(user: UserModel) -> Dict[str, str]:
     return {"Authorization": f"Bearer {mock_valid_access_token(user)}"}
 
 
-def assert_valid_access_token(user: UserModel, token: str) -> None:
-    assert token == mock_valid_access_token(user)
+def assert_valid_access_token(
+    user: UserModel,
+    token: str,
+    expected_properties: Optional[Dict[str, Any]] = None,
+) -> None:
+    assert token == mock_valid_access_token(user, expected_properties)
 
 
-def assert_valid_refresh_token(user: UserModel, token: str) -> None:
-    assert token == mock_valid_refresh_token(user)
+def assert_valid_refresh_token(
+    user: UserModel,
+    token: str,
+    expected_properties: Optional[Dict[str, Any]] = None,
+) -> None:
+    assert token == mock_valid_refresh_token(user, expected_properties)
 
 
 def assert_valid_token_response(
     user: UserModel,
     token_response: Dict[str, str],
-    expecting_refresh_token: bool,
+    expecting_refresh_token: bool = False,
+    expected_access_token_properties: Optional[Dict[str, Any]] = None,
+    expected_refresh_token_properties: Optional[Dict[str, Any]] = None,
 ) -> None:
     assert isinstance(token_response, dict)
     assert set(token_response.keys()).issubset(
@@ -580,9 +659,17 @@ def assert_valid_token_response(
     assert "token_type" in token_response
     assert "access_token" in token_response
     assert ("refresh_token" in token_response) == expecting_refresh_token
-    assert_valid_access_token(user, token_response["access_token"])
+    assert_valid_access_token(
+        user,
+        token_response["access_token"],
+        expected_access_token_properties,
+    )
     if expecting_refresh_token:
-        assert_valid_refresh_token(user, token_response["refresh_token"])
+        assert_valid_refresh_token(
+            user,
+            token_response["refresh_token"],
+            expected_refresh_token_properties,
+        )
 
 
 @pytest.fixture
@@ -594,11 +681,9 @@ def get_mock_authentication(name: str, has_refresh_strategy: bool = False):
     return AuthenticationBackend(
         name=name,
         transport=MockTransport(tokenUrl="/login"),
-        get_strategy=lambda: MockStrategy(token_prefix="access"),
+        get_strategy=lambda: MockStrategy(token_type="access"),
         get_refresh_strategy=(
-            lambda: MockStrategy(token_prefix="refresh")
-            if has_refresh_strategy
-            else None
+            lambda: MockStrategy(token_type="refresh") if has_refresh_strategy else None
         ),
     )
 

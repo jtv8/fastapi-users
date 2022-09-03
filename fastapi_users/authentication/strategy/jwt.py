@@ -1,4 +1,4 @@
-from typing import Generic, List, Optional
+from typing import Any, Dict, Generic, List, Optional
 
 import jwt
 
@@ -7,6 +7,7 @@ from fastapi_users.authentication.strategy.base import (
     Strategy,
     StrategyDestroyNotSupportedError,
 )
+from fastapi_users.authentication.token import TokenData
 from fastapi_users.jwt import SecretType, decode_jwt, generate_jwt
 from fastapi_users.manager import BaseUserManager
 
@@ -36,7 +37,7 @@ class JWTStrategy(Strategy[models.UP, models.ID], Generic[models.UP, models.ID])
 
     async def read_token(
         self, token: Optional[str], user_manager: BaseUserManager[models.UP, models.ID]
-    ) -> Optional[models.UP]:
+    ) -> Optional[TokenData[models.UP]]:
         if token is None:
             return None
 
@@ -56,7 +57,10 @@ class JWTStrategy(Strategy[models.UP, models.ID], Generic[models.UP, models.ID])
         except (exceptions.UserNotExists, exceptions.InvalidID):
             return None
 
-    async def write_token(self, user: models.UP) -> str:
+    async def write_token(
+        self,
+        token_data: TokenData[models.UP],
+    ) -> str:
         data = {"user_id": str(user.id), "aud": self.token_audience}
         return generate_jwt(
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm

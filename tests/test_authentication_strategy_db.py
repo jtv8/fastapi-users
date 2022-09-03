@@ -10,6 +10,7 @@ from fastapi_users.authentication.strategy import (
     AccessTokenProtocol,
     DatabaseStrategy,
 )
+from fastapi_users.authentication.token import TokenData
 from tests.conftest import IDType, UserModel
 
 
@@ -78,8 +79,8 @@ class TestReadToken:
         database_strategy: DatabaseStrategy[UserModel, IDType, AccessTokenModel],
         user_manager,
     ):
-        authenticated_user = await database_strategy.read_token(None, user_manager)
-        assert authenticated_user is None
+        token_data = await database_strategy.read_token(None, user_manager)
+        assert token_data is None
 
     @pytest.mark.asyncio
     async def test_invalid_token(
@@ -87,8 +88,8 @@ class TestReadToken:
         database_strategy: DatabaseStrategy[UserModel, IDType, AccessTokenModel],
         user_manager,
     ):
-        authenticated_user = await database_strategy.read_token("TOKEN", user_manager)
-        assert authenticated_user is None
+        token_data = await database_strategy.read_token("TOKEN", user_manager)
+        assert token_data is None
 
     @pytest.mark.asyncio
     async def test_valid_token_not_existing_user(
@@ -103,8 +104,8 @@ class TestReadToken:
                 "user_id": uuid.UUID("d35d213e-f3d8-4f08-954a-7e0d1bea286f"),
             }
         )
-        authenticated_user = await database_strategy.read_token("TOKEN", user_manager)
-        assert authenticated_user is None
+        token_data = await database_strategy.read_token("TOKEN", user_manager)
+        assert token_data is None
 
     @pytest.mark.asyncio
     async def test_valid_token(
@@ -115,9 +116,9 @@ class TestReadToken:
         user: UserModel,
     ):
         await access_token_database.create({"token": "TOKEN", "user_id": user.id})
-        authenticated_user = await database_strategy.read_token("TOKEN", user_manager)
-        assert authenticated_user is not None
-        assert authenticated_user.id == user.id
+        token_data = await database_strategy.read_token("TOKEN", user_manager)
+        assert token_data is not None
+        assert token_data.user.id == user.id
 
 
 @pytest.mark.authentication
@@ -125,13 +126,13 @@ class TestReadToken:
 async def test_write_token(
     database_strategy: DatabaseStrategy[UserModel, IDType, AccessTokenModel],
     access_token_database: AccessTokenDatabaseMock,
-    user: UserModel,
+    token_data: TokenData[UserModel],
 ):
-    token = await database_strategy.write_token(user)
+    token = await database_strategy.write_token(token_data)
 
     access_token = await access_token_database.get_by_token(token)
     assert access_token is not None
-    assert access_token.user_id == user.id
+    assert access_token.user_id == token_data.user.id
 
 
 @pytest.mark.authentication
@@ -139,10 +140,12 @@ async def test_write_token(
 async def test_destroy_token(
     database_strategy: DatabaseStrategy[UserModel, IDType, AccessTokenModel],
     access_token_database: AccessTokenDatabaseMock,
-    user: UserModel,
+    token_data: TokenData[UserModel],
 ):
-    await access_token_database.create({"token": "TOKEN", "user_id": user.id})
+    await access_token_database.create(
+        {"token": "TOKEN", "user_id": token_data.user.id}
+    )
 
-    await database_strategy.destroy_token("TOKEN", user)
+    await database_strategy.destroy_token("TOKEN", token_data.user)
 
     assert await access_token_database.get_by_token("TOKEN") is None

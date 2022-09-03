@@ -1,5 +1,5 @@
 import sys
-from typing import Generic, List, Optional, TypeVar
+from typing import Any, List, Optional, TypeVar
 
 if sys.version_info < (3, 8):
     from typing_extensions import Protocol  # pragma: no cover
@@ -38,14 +38,14 @@ class OAuthAccountProtocol(Protocol[ID]):
         ...  # pragma: no cover
 
 
-UP = TypeVar("UP", bound=UserProtocol)
-OAP = TypeVar("OAP", bound=OAuthAccountProtocol)
+UP = TypeVar("UP", bound=UserProtocol[Any])
+OAP = TypeVar("OAP", bound=OAuthAccountProtocol[Any])
 
 
-class UserOAuthProtocol(UserProtocol[ID], Generic[ID, OAP]):
+class UserOAuthProtocol(UserProtocol[ID], Protocol[ID, OAP]):
     """User protocol including a list of OAuth accounts."""
 
     oauth_accounts: List[OAP]
 
 
-UOAP = TypeVar("UOAP", bound=UserOAuthProtocol)
+UOAP = TypeVar("UOAP", bound=UserOAuthProtocol[Any, Any])
